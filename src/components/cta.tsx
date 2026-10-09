@@ -79,7 +79,7 @@ export function Cta({
       href={href}
       onClick={onClick}
       target={external ? "_blank" : undefined}
-      rel={external ? "noreferrer" : undefined}
+      rel={external ? "noopener noreferrer" : undefined}
       className={classes}
     >
       {inner}
@@ -103,7 +103,7 @@ export function RollLink({
     <a
       href={href}
       target={external ? "_blank" : undefined}
-      rel={external ? "noreferrer" : undefined}
+      rel={external ? "noopener noreferrer" : undefined}
       className={cn("group relative inline-block overflow-hidden", className)}
     >
       <span className="block transition-transform duration-500 ease-swift group-hover:-translate-y-full">

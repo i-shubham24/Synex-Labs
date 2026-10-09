@@ -105,26 +105,33 @@ export function LiquidMark({ className }: { className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [live, setLive] = useState(false);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const gl = canvas.getContext("webgl", { premultipliedAlpha: true, antialias: false });
-    if (!gl) return;
-
+// Sets up the WebGL scene. Throws on any GL failure so the caller can fall
+// back to the static mark. Returns a cleanup function.
+function start(
+  gl: WebGLRenderingContext,
+  canvas: HTMLCanvasElement,
+  onLive: () => void,
+): () => void {
     const compile = (type: number, src: string) => {
-      const shader = gl.createShader(type)!;
+      const shader = gl.createShader(type);
+      if (!shader) throw new Error("WebGL shader creation failed");
       gl.shaderSource(shader, src);
       gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
+        throw new Error("WebGL shader compile failed");
       return shader;
     };
-    const program = gl.createProgram()!;
+    const program = gl.createProgram();
+    if (!program) throw new Error("WebGL program creation failed");
     gl.attachShader(program, compile(gl.VERTEX_SHADER, VERT));
     gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAG));
     gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return;
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS))
+      throw new Error("WebGL program link failed");
     gl.useProgram(program);
 
     const buffer = gl.createBuffer();
+    if (!buffer) throw new Error("WebGL buffer creation failed");
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(
       gl.ARRAY_BUFFER,
@@ -189,11 +196,11 @@ export function LiquidMark({ className }: { className?: string }) {
     viewWatch.observe(canvas);
 
     let frame = 0;
-    const start = performance.now();
+    const t0 = performance.now();
     const draw = (now: number) => {
       frame = requestAnimationFrame(draw);
       if (!visible || document.hidden) return;
-      const t = still ? 1.2 : (now - start) / 1000;
+      const t = still ? 1.2 : (now - t0) / 1000;
       mouse.x += (mouse.tx - mouse.x) * 0.08;
       mouse.y += (mouse.ty - mouse.y) * 0.08;
       trip += (tripTarget - trip) * 0.05;
@@ -212,7 +219,7 @@ export function LiquidMark({ className }: { className?: string }) {
       if (still) cancelAnimationFrame(frame);
     };
     frame = requestAnimationFrame(draw);
-    setLive(true);
+    onLive();
 
     return () => {
       cancelAnimationFrame(frame);
@@ -221,6 +228,23 @@ export function LiquidMark({ className }: { className?: string }) {
       sizeWatch.disconnect();
       viewWatch.disconnect();
     };
+  }
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const gl = canvas.getContext("webgl", { premultipliedAlpha: true, antialias: false });
+    if (!gl) return;
+
+    // If the GPU is blocked or shaders fail, bail out: `live` stays false
+    // and the static SNMark fallback underneath remains visible.
+    let cleanup: (() => void) | undefined;
+    try {
+      cleanup = start(gl, canvas, () => setLive(true));
+    } catch {
+      return;
+    }
+    return () => cleanup?.();
   }, []);
 
   return (

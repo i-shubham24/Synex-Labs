@@ -78,7 +78,7 @@ function Slab({ project }: { project: Project }) {
           />
         </span>
 
-        <span className="display col-span-10 text-[clamp(2.4rem,5.4vw,5.6rem)] transition-transform duration-500 ease-out-soft sm:col-span-6 lg:col-span-7 lg:col-start-4 lg:group-hover:translate-x-[15.5rem]">
+        <span className="display col-span-10 text-[clamp(2.4rem,5.4vw,5.6rem)] transition-transform duration-500 ease-out-soft sm:col-span-6 lg:col-span-7 lg:col-start-4 lg:group-hover:translate-x-[12rem] xl:group-hover:translate-x-[15.5rem]">
           {project.name}
         </span>
 

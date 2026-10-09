@@ -4,9 +4,10 @@ import { Moon, Sun } from "lucide-react";
 import { useLayoutEffect } from "react";
 import { cn } from "@/lib/utils";
 
-// Runs before the page paints: applies the saved theme, and makes every visit
-// start at the top (no restored scroll position, no leftover #section in the URL).
-export const themeScript = `(function(){try{document.documentElement.setAttribute("data-theme",localStorage.getItem("theme")==="dark"?"dark":"light")}catch(e){}try{history.scrollRestoration="manual";if(location.hash){history.replaceState(null,"",location.pathname+location.search)}}catch(e){}})()`;
+// Runs before the page paints: applies the saved theme. Scroll restoration is
+// manual so reloads start at the top, but the URL hash is preserved so
+// deep links (#work, #contact) and the back button keep working.
+export const themeScript = `(function(){try{document.documentElement.setAttribute("data-theme",localStorage.getItem("theme")==="dark"?"dark":"light")}catch(e){}try{history.scrollRestoration="manual"}catch(e){}})()`;
 
 function resolveTheme() {
   // Light is the house default. Dark is one click away and is remembered.

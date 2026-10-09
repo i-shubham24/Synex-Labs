@@ -7,6 +7,25 @@ export const site = {
   email: "shubhamkaler24@gmail.com",
   base: "India",
   timeZone: "Asia/Kolkata",
+  // Canonical production URL. Override with SITE_URL env in preview/prod.
+  url:
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+    "https://synexlabs.in",
+  locale: "en_IN",
+  twitterHandle: "@synexlabs",
+  keywords: [
+    "web studio India",
+    "website design",
+    "online store development",
+    "web app development",
+    "Next.js agency",
+    "React Native apps",
+    "AI tools",
+  ],
+  authors: [
+    { name: "Shubhampreet Singh" },
+    { name: "Nitin Kumar" },
+  ],
   nav: [
     { label: "Work", href: "#work" },
     { label: "Services", href: "#services" },

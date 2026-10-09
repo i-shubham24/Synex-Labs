@@ -1,5 +1,6 @@
 import { site } from "@/lib/site";
 import { RollLink } from "../cta";
+import { EmailLink } from "../email";
 import { Kinetic } from "../kinetic";
 import { SNLogo } from "../logo";
 
@@ -28,7 +29,7 @@ export function Footer() {
           </nav>
 
           <div className="label col-span-6 flex flex-col items-start gap-3 md:col-span-3">
-            <RollLink href={`mailto:${site.email}`}>Email</RollLink>
+            <EmailLink label="Email" />
             <RollLink href="https://github.com/i-shubham24" external>
               GitHub / Shubham
             </RollLink>

@@ -396,9 +396,6 @@
     opacity: 0.16;
   }
 }
-.sn-trip:hover .sn-ghost {
-  transform: translate(calc(var(--sn-dx, 0) * 3.2px), calc(var(--sn-dy, 0) * 3.2px));
-}
 
 
 /* Anchor links glide, using the browser's own scrolling. */

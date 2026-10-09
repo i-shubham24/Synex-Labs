@@ -78,7 +78,7 @@ export function Reel() {
               data-cursor="Open"
               aria-hidden={copy === 1}
               tabIndex={copy === 1 ? -1 : 0}
-              aria-label={`View ${project.name}`}
+              aria-label={copy === 0 ? `View ${project.name}` : undefined}
               className="group w-[clamp(12rem,23vw,22rem)] shrink-0 overflow-hidden border border-border"
             >
               <Image

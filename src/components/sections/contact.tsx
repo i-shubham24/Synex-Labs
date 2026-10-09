@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { Cta } from "../cta";
+import { EmailAddress } from "../email";
 import { Fade, Rise } from "../reveal";
 
 const NEEDS = ["Website", "Online store", "Web app", "AI tool", "Not sure yet"];
@@ -33,20 +34,59 @@ function Clock() {
 
 export function Contact() {
   const [need, setNeed] = useState(NEEDS[0]);
+  const [status, setStatus] = useState<"idle" | "sending" | "done" | "error">("idle");
+  const [error, setError] = useState("");
 
-  // No server yet: the form opens the visitor's mail app with the brief filled in.
-  function send(e: React.FormEvent<HTMLFormElement>) {
+  // Posts to the same-origin /api/contact (validated + rate-limited server
+  // side). Falls back to the visitor's mail app only if the API is unreachable.
+  async function send(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const data = new FormData(e.currentTarget);
-    const subject = `New project: ${need}`;
-    const body = [
-      `Name: ${data.get("name")}`,
-      `Email: ${data.get("email")}`,
-      `Looking for: ${need}`,
-      "",
-      `${data.get("message")}`,
-    ].join("\n");
-    window.location.href = `mailto:${site.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    if (String(data.get("company") ?? "").trim() !== "") return; // honeypot
+    const payload = {
+      name: String(data.get("name") ?? ""),
+      email: String(data.get("email") ?? ""),
+      need,
+      message: String(data.get("message") ?? ""),
+    };
+    setStatus("sending");
+    setError("");
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+        message?: string;
+      } | null;
+      if (res.ok && json?.ok) {
+        setStatus("done");
+        form.reset();
+        return;
+      }
+      if (res.status === 429) {
+        setError("Too many tries. Please wait a minute.");
+      } else {
+        setError(json?.error || "Could not send. Try the email link instead.");
+      }
+      setStatus("error");
+    } catch {
+      // Offline / API down: open the mail app with the brief filled in.
+      const subject = `New project: ${need}`;
+      const body = [
+        `Name: ${payload.name}`,
+        `Email: ${payload.email}`,
+        `Looking for: ${need}`,
+        "",
+        payload.message,
+      ].join("\n");
+      window.location.href = `mailto:${site.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      setStatus("idle");
+    }
   }
 
   return (
@@ -65,13 +105,7 @@ export function Contact() {
           </div>
 
           <Fade className="flex flex-col gap-8">
-            <a
-              href={`mailto:${site.email}`}
-              data-cursor="Write"
-              className="wide w-fit text-[clamp(1rem,2.1vw,1.9rem)] break-all underline decoration-2 underline-offset-[0.3em] transition-[font-stretch] duration-500 ease-out-soft [font-stretch:100%] hover:[font-stretch:112%]"
-            >
-              {site.email}
-            </a>
+            <EmailAddress className="wide w-fit text-[clamp(1rem,2.1vw,1.9rem)] break-all underline decoration-2 underline-offset-[0.3em] transition-[font-stretch] duration-500 ease-out-soft [font-stretch:100%] hover:[font-stretch:112%]" />
             <dl className="label grid max-w-md grid-cols-2 gap-y-2">
               <dt className="opacity-60">Based in</dt>
               <dd>{site.base}</dd>
@@ -86,7 +120,16 @@ export function Contact() {
         </div>
 
         <Fade className="col-span-12 lg:col-span-5 lg:col-start-8" delay={0.1}>
-          <form onSubmit={send} className="flex flex-col gap-3">
+          <form onSubmit={send} className="flex flex-col gap-3" noValidate={false}>
+            {/* Honeypot: hidden from humans, catches bots. */}
+            <input
+              type="text"
+              name="company"
+              autoComplete="off"
+              tabIndex={-1}
+              aria-hidden="true"
+              className="absolute h-px w-px overflow-hidden opacity-0"
+            />
             <label className="sr-only" htmlFor="name">
               Your name
             </label>
@@ -94,6 +137,8 @@ export function Contact() {
               id="name"
               name="name"
               required
+              minLength={2}
+              maxLength={100}
               autoComplete="name"
               placeholder="Your name"
               className={FIELD}
@@ -106,7 +151,9 @@ export function Contact() {
               name="email"
               type="email"
               required
+              maxLength={254}
               autoComplete="email"
+              inputMode="email"
               placeholder="Your email"
               className={FIELD}
             />
@@ -140,13 +187,22 @@ export function Contact() {
               id="message"
               name="message"
               required
+              minLength={10}
+              maxLength={2000}
               rows={5}
               placeholder="A few lines about the project"
               className={cn(FIELD, "resize-none")}
             />
             <Cta type="submit" tone="ink" size="lg" className="mt-2 w-full">
-              Send the brief
+              {status === "sending" ? "Sending…" : "Send the brief"}
             </Cta>
+            <p aria-live="polite" className="label min-h-5 text-[#11110f]/70">
+              {status === "done"
+                ? "Brief received. We reply within a day."
+                : status === "error"
+                  ? error
+                  : ""}
+            </p>
           </form>
         </Fade>
       </div>

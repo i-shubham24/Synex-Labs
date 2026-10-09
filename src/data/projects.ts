@@ -137,7 +137,7 @@ export const projects: Project[] = [
       "A portfolio for a digital product studio. Seven scroll chapters walk through clients, work and results.",
     built: ["Chapter based scroll", "Client and project showcase", "Contact"],
     stack: [],
-    url: "http://portfolio.humblesolutions.in/",
+    url: "https://portfolio.humblesolutions.in/",
   },
   {
     slug: "eve-pizzeria",

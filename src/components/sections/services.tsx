@@ -171,7 +171,7 @@ function Panel({ index, live = false }: { index: number; live?: boolean }) {
     <Frame url={project.url} className="absolute inset-0">
       <Shot
         frames={frames(project)}
-        alt=""
+        alt={`${project.name} home page preview`}
         play={live}
         sizes="40vw"
         className="aspect-auto h-[calc(100%-1.75rem)]"

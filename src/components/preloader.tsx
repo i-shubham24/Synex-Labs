@@ -3,10 +3,11 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { finishIntro } from "./intro";
-import { SNMark } from "./logo";
+import { LiquidMark } from "./liquid-mark";
 
-// Opening screen: the small mark turns from S to N in the centre, on the
-// background of the current theme, then the screen wipes away along the diagonal.
+// Opening screen: the same liquid SN mark as the hero, melting between S
+// and N on the GPU (one canvas layer, no SVG repaint), then the screen wipes
+// away along the diagonal.
 export function Preloader() {
   const [open, setOpen] = useState(true);
 
@@ -34,9 +35,8 @@ export function Preloader() {
             initial={false}
             exit={{ scale: 0.6, opacity: 0 }}
             transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-            style={{ "--sn-cycle": "1.5s" } as React.CSSProperties}
           >
-            <SNMark className="w-[clamp(8rem,15vw,11.5rem)]" />
+            <LiquidMark className="w-[clamp(8rem,15vw,11.5rem)]" />
           </motion.div>
         </motion.div>
       )}

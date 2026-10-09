@@ -15,19 +15,37 @@ export function Cursor() {
 
   useEffect(() => {
     if (!matchMedia("(pointer: fine)").matches) return;
-    const move = (e: PointerEvent) => {
+    // Pointer events can fire faster than frames. Stash the latest event and
+    // process it once per frame, so DOM traversal + setState happen at most
+    // ~60x/s instead of per event. Functional updates with a prev-check mean
+    // React skips the re-render when nothing actually changed.
+    let frame = 0;
+    let pending: PointerEvent | null = null;
+    const process = () => {
+      frame = 0;
+      if (!pending) return;
+      const e = pending;
+      pending = null;
       x.set(e.clientX);
       y.set(e.clientY);
       setOn(true);
       const target = e.target as Element | null;
       const tagged = target?.closest<HTMLElement>("[data-cursor]");
-      setLabel(tagged?.dataset.cursor ?? null);
-      setLink(!tagged && !!target?.closest("a,button,[role='button']"));
+      const nextLabel = tagged?.dataset.cursor ?? null;
+      const nextLink =
+        !tagged && !!target?.closest("a,button,[role='button']");
+      setLabel((prev) => (prev === nextLabel ? prev : nextLabel));
+      setLink((prev) => (prev === nextLink ? prev : nextLink));
+    };
+    const move = (e: PointerEvent) => {
+      pending = e;
+      if (!frame) frame = requestAnimationFrame(process);
     };
     const leave = () => setOn(false);
     window.addEventListener("pointermove", move, { passive: true });
     document.documentElement.addEventListener("pointerleave", leave);
     return () => {
+      if (frame) cancelAnimationFrame(frame);
       window.removeEventListener("pointermove", move);
       document.documentElement.removeEventListener("pointerleave", leave);
     };
