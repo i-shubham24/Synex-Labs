@@ -10,10 +10,10 @@ import {
   useTransform,
   useVelocity,
 } from "motion/react";
-import { useRef } from "react";
+import Image from "next/image";
+import { useEffect, useRef } from "react";
 import { cover, projects } from "@/data/projects";
 import { useOpenProject } from "../project-dialog";
-import { Frame, Shot } from "../shot";
 
 const wrap = (min: number, max: number, v: number) => {
   const range = max - min;
@@ -21,9 +21,12 @@ const wrap = (min: number, max: number, v: number) => {
 };
 
 // A band of real screens that drifts sideways and speeds up with the scroll.
+// It only does any work while it is on screen.
 export function Reel() {
   const open = useOpenProject();
   const still = useReducedMotion();
+  const section = useRef<HTMLElement>(null);
+  const visible = useRef(true);
   const base = useMotionValue(0);
   const { scrollY } = useScroll();
   const velocity = useSpring(useVelocity(scrollY), {
@@ -31,13 +34,21 @@ export function Reel() {
     stiffness: 300,
   });
   const boost = useTransform(velocity, [-2000, 0, 2000], [-6, 0, 6]);
-  const skew = useTransform(velocity, [-2500, 2500], [4, -4]);
   const x = useTransform(base, (v) => `${wrap(-50, 0, v)}%`);
   const direction = useRef(-1);
   const paused = useRef(false);
 
+  useEffect(() => {
+    if (!section.current) return;
+    const watch = new IntersectionObserver(([entry]) => {
+      visible.current = entry.isIntersecting;
+    });
+    watch.observe(section.current);
+    return () => watch.disconnect();
+  }, []);
+
   useAnimationFrame((_, delta) => {
-    if (still || paused.current) return;
+    if (still || paused.current || !visible.current) return;
     const b = boost.get();
     if (b < -0.2) direction.current = 1;
     else if (b > 0.2) direction.current = -1;
@@ -47,10 +58,14 @@ export function Reel() {
   });
 
   return (
-    <section aria-label="Project screens" className="overflow-x-clip pt-4 pb-10">
+    <section
+      ref={section}
+      aria-label="Project screens"
+      className="overflow-x-clip pt-10 pb-3 md:pt-16"
+    >
       <motion.div
-        className="flex w-max gap-5 pl-5"
-        style={{ x, skewX: still ? 0 : skew }}
+        className="flex w-max gap-3 pl-3 will-change-transform"
+        style={{ x }}
         onPointerEnter={() => (paused.current = true)}
         onPointerLeave={() => (paused.current = false)}
       >
@@ -63,21 +78,18 @@ export function Reel() {
               data-cursor="Open"
               aria-hidden={copy === 1}
               tabIndex={copy === 1 ? -1 : 0}
-              className="group w-[clamp(17rem,34vw,32rem)] shrink-0 text-left"
+              aria-label={`View ${project.name}`}
+              className="group w-[clamp(12rem,23vw,22rem)] shrink-0 overflow-hidden border border-border"
             >
-              <Frame url={project.url}>
-                <Shot
-                  frames={[cover(project)]}
-                  alt={`${project.name} home page`}
-                  sizes="(max-width: 768px) 72vw, 34vw"
-                  priority={copy === 0 && i < 3}
-                  className="transition-transform duration-700 ease-out-soft group-hover:scale-[1.03]"
-                />
-              </Frame>
-              <span className="label mt-3 flex justify-between gap-4 text-muted-foreground">
-                <span className="text-foreground">{project.name}</span>
-                <span>{project.kind}</span>
-              </span>
+              <Image
+                src={cover(project)}
+                alt=""
+                width={1440}
+                height={900}
+                sizes="(max-width: 768px) 50vw, 23vw"
+                priority={copy === 0 && i < 4}
+                className="aspect-[16/10] w-full object-cover object-top transition-transform duration-700 ease-out-soft group-hover:scale-[1.04]"
+              />
             </button>
           )),
         )}

@@ -65,7 +65,7 @@ export function Fade({
   );
 }
 
-// Section label: index, a short rule, the name, then a hairline that draws across.
+// Section label: a small square, the index and the name. No rules or dashes.
 export function Label({
   index,
   children,
@@ -76,21 +76,13 @@ export function Label({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col gap-4", className)}>
-      <p className="label flex items-center gap-3">
+    <Fade y={12} className={className}>
+      <p className="label flex items-center gap-2.5">
+        <span aria-hidden className="size-1.5 bg-signal" />
         <span className="text-signal">{index}</span>
-        <span aria-hidden className="h-px w-7 bg-current opacity-50" />
         <span>{children}</span>
       </p>
-      <motion.span
-        aria-hidden
-        className="block h-px origin-left bg-foreground/30"
-        initial={{ scaleX: 0 }}
-        whileInView={{ scaleX: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 1.2, ease: [0.7, 0, 0.2, 1] }}
-      />
-    </div>
+    </Fade>
   );
 }
 

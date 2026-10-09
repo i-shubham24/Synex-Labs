@@ -1,3 +1,5 @@
+"use client";
+
 import { team } from "@/data/content";
 import { RollLink } from "../cta";
 import { SNMark } from "../logo";
@@ -10,7 +12,7 @@ export function Team() {
     <section id="team" className="surface-invert py-24 md:py-36">
       <div className="shell">
         <SectionHead
-          index="05"
+          index="06"
           label="Team"
           title={[
             <>

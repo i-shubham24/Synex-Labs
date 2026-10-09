@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "lenis/dist/lenis.css";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
@@ -307,13 +306,11 @@
   position: fixed;
   inset: 0;
   z-index: 60;
-  opacity: 0.07;
-  mix-blend-mode: multiply;
+  opacity: 0.045;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 [data-theme="dark"] .grain {
-  mix-blend-mode: screen;
-  opacity: 0.05;
+  opacity: 0.06;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -328,3 +325,90 @@
     animation: none;
   }
 }
+
+/* Line drawings in the process panel draw themselves when their step is active. */
+.draw * {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 1.2s var(--ease-swift) 0.15s;
+}
+.is-on .draw * {
+  stroke-dashoffset: 0;
+}
+.draw .dots {
+  stroke-dasharray: 1.5 5;
+  stroke-dashoffset: 0;
+  opacity: 0;
+  transition: opacity 0.6s ease 0.9s;
+}
+.draw .fill {
+  fill: currentColor;
+  stroke: none;
+  opacity: 0;
+  transition: opacity 0.5s ease 1s;
+}
+.is-on .draw .dots,
+.is-on .draw .fill {
+  opacity: 1;
+}
+
+/* Scroll-linked motion for the statement band. Runs on the compositor.
+   Browsers without scroll timelines simply show the finished state. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .scroll-spin {
+      animation: scroll-spin linear both;
+      animation-timeline: view();
+      animation-range: entry 0% exit 100%;
+    }
+    .scroll-spin-back {
+      animation: scroll-spin-back linear both;
+      animation-timeline: view();
+      animation-range: entry 0% exit 100%;
+    }
+    .words {
+      view-timeline-name: --words;
+    }
+    .word {
+      animation: word-in linear both;
+      animation-timeline: --words;
+      animation-range: cover calc(16% + var(--i) * 1.05%)
+        cover calc(24% + var(--i) * 1.05%);
+    }
+  }
+}
+@keyframes scroll-spin {
+  to {
+    rotate: 180deg;
+  }
+}
+@keyframes scroll-spin-back {
+  to {
+    rotate: -180deg;
+  }
+}
+@keyframes word-in {
+  from {
+    opacity: 0.16;
+  }
+}
+.sn-trip:hover .sn-ghost {
+  transform: translate(calc(var(--sn-dx, 0) * 3.2px), calc(var(--sn-dy, 0) * 3.2px));
+}
+
+
+/* Anchor links glide, using the browser's own scrolling. */
+html {
+  scroll-padding-top: 5rem;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+

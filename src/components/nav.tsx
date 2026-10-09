@@ -1,11 +1,10 @@
 "use client";
 
-import { useLenis } from "lenis/react";
+import { ArrowUpRight } from "lucide-react";
 import { motion, useMotionValueEvent, useScroll } from "motion/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { site } from "@/lib/site";
 import { cn } from "@/lib/utils";
-import { Cta, RollLink } from "./cta";
 import { SNMark } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
 import {
@@ -16,78 +15,79 @@ import {
   SheetTrigger,
 } from "./ui/sheet";
 
+// A cell of the bar. On hover a block rises from the bottom and the text inverts.
+const CELL =
+  "group/cell relative flex items-center overflow-hidden border-border px-4 before:absolute before:inset-0 before:translate-y-full before:bg-foreground before:transition-transform before:duration-300 before:ease-swift hover:before:translate-y-0";
+const INK = "relative transition-colors duration-300 group-hover/cell:text-background";
+
+// The header is one ruled bar cut into cells: mark, links, theme switch, call to action.
+// It floats a little below the top edge and tucks away while scrolling down.
 export function Nav() {
   const { scrollY } = useScroll();
   const [hidden, setHidden] = useState(false);
-  const [raised, setRaised] = useState(false);
   const [open, setOpen] = useState(false);
-  const lenis = useLenis();
 
   useMotionValueEvent(scrollY, "change", (y) => {
     const before = scrollY.getPrevious() ?? 0;
     setHidden(y > before && y > 500);
-    setRaised(y > 24);
   });
-
-  useEffect(() => {
-    if (!lenis) return;
-    if (open) lenis.stop();
-    else lenis.start();
-  }, [open, lenis]);
 
   function jump(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
     e.preventDefault();
     setOpen(false);
-    setTimeout(() => {
-      if (lenis) lenis.scrollTo(href, { offset: -72 });
-      else document.querySelector(href)?.scrollIntoView();
-    }, 320);
+    setTimeout(() => document.querySelector(href)?.scrollIntoView(), 320);
   }
 
   return (
     <motion.header
-      className={cn(
-        "fixed inset-x-0 top-0 z-50 transition-colors duration-500",
-        raised ? "bg-background/88 backdrop-blur-md" : "bg-transparent",
-      )}
-      animate={{ y: hidden && !open ? "-100%" : "0%" }}
+      className="fixed inset-x-0 top-0 z-50"
+      animate={{ y: hidden && !open ? "-120%" : "0%" }}
       transition={{ duration: 0.5, ease: [0.7, 0, 0.2, 1] }}
     >
-      <div className="shell flex h-16 items-center justify-between gap-6 md:h-[4.5rem]">
-        <a
-          href="#top"
-          className="flex items-center gap-3"
-          aria-label="Synex Labs, back to top"
-          data-cursor="Top"
-        >
-          <SNMark className="size-8" />
-          <span className="wide hidden text-[0.8rem] sm:block">Synex Labs</span>
-        </a>
+      <div className="shell pt-3">
+        <div className="flex h-12 items-stretch border border-border bg-background">
+          <a
+            href="#top"
+            aria-label="Synex Labs, back to top"
+            data-cursor="Top"
+            className="flex items-center gap-2.5 border-r border-border px-3 md:px-4"
+          >
+            <SNMark className="size-6" ghosts={false} />
+            <span className="wide text-[0.72rem] max-sm:hidden">Synex Labs</span>
+          </a>
 
-        <nav aria-label="Main" className="hidden items-center gap-8 md:flex">
-          {site.nav.map((item) => (
-            <RollLink key={item.href} href={item.href} className="label">
-              {item.label}
-            </RollLink>
-          ))}
-        </nav>
+          <nav aria-label="Main" className="hidden items-stretch md:flex">
+            {site.nav.map((item, i) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className={cn(CELL, "label gap-2 border-r")}
+              >
+                <span className={cn(INK, "text-signal")}>0{i + 1}</span>
+                <span className={INK}>{item.label}</span>
+              </a>
+            ))}
+          </nav>
 
-        <div className="flex items-center gap-1.5">
-          <ThemeToggle />
-          <Cta href="#contact" className="hidden sm:inline-flex">
+          <ThemeToggle className="ml-auto h-full border-l border-border" />
+          <a
+            href="#contact"
+            className="group hidden items-center gap-3 bg-foreground px-4 text-sm font-semibold text-background transition-colors duration-300 hover:bg-signal hover:text-[#11110f] sm:flex"
+          >
             Start a project
-          </Cta>
+            <ArrowUpRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </a>
 
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <button
                 type="button"
                 aria-label="Open menu"
-                className="grid size-10 place-items-center md:hidden"
+                className="grid w-12 place-items-center border-l border-border md:hidden"
               >
                 <span className="grid gap-1.5">
-                  <span className="block h-0.5 w-6 bg-foreground" />
-                  <span className="block h-0.5 w-4 justify-self-end bg-signal" />
+                  <span className="block h-0.5 w-5 bg-foreground" />
+                  <span className="block h-0.5 w-3 justify-self-end bg-signal" />
                 </span>
               </button>
             </SheetTrigger>
@@ -104,25 +104,21 @@ export function Nav() {
               </div>
               <nav
                 aria-label="Mobile"
-                className="flex flex-1 flex-col justify-center gap-1 px-5"
+                className="flex flex-1 flex-col justify-center px-5"
               >
                 {[...site.nav, { label: "Contact", href: "#contact" }].map(
                   (item, i) => (
-                    <motion.a
+                    <a
                       key={item.href}
                       href={item.href}
                       onClick={(e) => jump(e, item.href)}
-                      className="display text-[clamp(3rem,15vw,5rem)] active:text-signal"
-                      initial={{ opacity: 0, x: 40 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{
-                        delay: 0.12 + i * 0.05,
-                        duration: 0.6,
-                        ease: [0.16, 1, 0.3, 1],
-                      }}
+                      className="title flex items-baseline justify-between border-b border-border py-4 text-[2.6rem] active:text-signal"
                     >
                       {item.label}
-                    </motion.a>
+                      <span className="label text-muted-foreground">
+                        0{i + 1}
+                      </span>
+                    </a>
                   ),
                 )}
               </nav>

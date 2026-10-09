@@ -12,7 +12,7 @@ export function Faq() {
   return (
     <section id="faq" className="py-24 md:py-36">
       <div className="shell">
-        <Label index="06">FAQ</Label>
+        <Label index="07">FAQ</Label>
 
         <div className="mt-8 grid grid-cols-12 gap-x-8 gap-y-10 md:mt-12">
           <div className="col-span-12 lg:col-span-5">

@@ -1,11 +1,10 @@
 "use client";
 
-import { useLenis } from "lenis/react";
 import { X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { Dialog } from "radix-ui";
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { frames, mobileShot, projects, type Project } from "@/data/projects";
 import { Cta } from "./cta";
 import { Frame, Status } from "./shot";
@@ -22,13 +21,6 @@ export function ProjectDialogProvider({
 }) {
   const [slug, setSlug] = useState<string | null>(null);
   const project = projects.find((p) => p.slug === slug);
-  const lenis = useLenis();
-
-  useEffect(() => {
-    if (!lenis) return;
-    if (slug) lenis.stop();
-    else lenis.start();
-  }, [slug, lenis]);
 
   return (
     <OpenProject.Provider value={setSlug}>
@@ -48,7 +40,6 @@ export function ProjectDialogProvider({
               </Dialog.Overlay>
               <Dialog.Content asChild forceMount>
                 <motion.div
-                  data-lenis-prevent
                   className="fixed inset-x-0 top-[5svh] bottom-0 z-[56] overflow-y-auto overscroll-contain bg-background text-foreground outline-none"
                   initial={{ y: "100%" }}
                   animate={{ y: "0%" }}

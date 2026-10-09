@@ -135,3 +135,36 @@ export const faqs = [
     a: "We stay available for fixes, updates and new features. You also get the full code and every login.",
   },
 ];
+
+// Who the studio builds for. Each card shows one matching project.
+export const audiences = [
+  {
+    name: "Local businesses",
+    line: "Shops, clinics and service firms that need a site that brings in enquiries.",
+    needs: ["A clear page for each service", "Quote and booking forms", "Easy to find on Google"],
+    project: "optimal-cleaning",
+  },
+  {
+    name: "Online sellers",
+    line: "Brands that want their own store, with a catalogue, a cart and a checkout.",
+    needs: ["Product catalogue", "Cart and checkout", "An admin panel you can run"],
+    project: "aurex-india",
+  },
+  {
+    name: "Startups",
+    line: "Founders who need a working product fast, without hiring a big team.",
+    needs: ["A first version in weeks", "Logins, roles and real data", "Room to grow later"],
+    project: "dolancer",
+  },
+  {
+    name: "Agencies",
+    line: "Teams that need a reliable build partner for their client work.",
+    needs: ["Builds that match the design", "Clean handover", "Help when deadlines are tight"],
+    project: "humble-solutions",
+  },
+];
+
+export const about = [
+  "Synex Labs is a web studio from India. We work with businesses here and abroad, from a broker in Zurich to a parts store in Australia.",
+  "We stay small on purpose. No account managers and no handoffs. The two people on your first call are the two people who design, code and launch your project.",
+];

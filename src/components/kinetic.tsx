@@ -49,13 +49,27 @@ export function Kinetic({
       });
       frame = moving ? requestAnimationFrame(tick) : 0;
     };
+    let visible = false;
+    const watch = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+    });
+    watch.observe(root);
     const onMove = (e: PointerEvent) => {
+      if (!visible) return;
       pointer.x = e.clientX;
       pointer.y = e.clientY;
+      const r = root.getBoundingClientRect();
+      const far =
+        e.clientX < r.left - radius ||
+        e.clientX > r.right + radius ||
+        e.clientY < r.top - radius ||
+        e.clientY > r.bottom + radius;
+      if (far && !level.some((v) => v > 0.01)) return;
       if (!frame) frame = requestAnimationFrame(tick);
     };
     window.addEventListener("pointermove", onMove, { passive: true });
     return () => {
+      watch.disconnect();
       window.removeEventListener("pointermove", onMove);
       cancelAnimationFrame(frame);
     };

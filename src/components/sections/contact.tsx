@@ -55,7 +55,7 @@ export function Contact() {
         <div className="col-span-12 flex flex-col justify-between gap-12 lg:col-span-6">
           <div className="flex flex-col gap-5">
             <p className="label flex gap-3">
-              <span>06</span>
+              <span>08</span>
               <span>Contact</span>
             </p>
             <h2 className="display text-[clamp(3.2rem,9vw,9.5rem)]">
