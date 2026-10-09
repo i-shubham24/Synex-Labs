@@ -1,0 +1,330 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "lenis/dist/lenis.css";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-signal: var(--signal);
+  --color-acid: var(--acid);
+  --color-tide: var(--tide);
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-heading: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
+  --radius-2xl: 8px;
+  --radius-3xl: 10px;
+  --radius-4xl: 12px;
+  --ease-swift: cubic-bezier(0.7, 0, 0.2, 1);
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Paper: the light surface. Also used for inverted sections in dark mode. */
+:root,
+[data-theme="dark"] .surface-invert {
+  color-scheme: light;
+  --background: #f2efe8;
+  --foreground: #11110f;
+  --card: #faf8f3;
+  --card-foreground: #11110f;
+  --popover: #faf8f3;
+  --popover-foreground: #11110f;
+  --primary: #ff4a14;
+  --primary-foreground: #11110f;
+  --secondary: #e6e2d8;
+  --secondary-foreground: #11110f;
+  --muted: #e6e2d8;
+  --muted-foreground: #5c5a53;
+  --accent: #e6e2d8;
+  --accent-foreground: #11110f;
+  --destructive: #c8321a;
+  --border: rgb(17 17 15 / 0.2);
+  --input: rgb(17 17 15 / 0.22);
+  --ring: #ff4a14;
+  --signal: #ff4a14;
+  --acid: #b6dc12;
+  --tide: #0a9c86;
+  --radius: 4px;
+}
+
+/* Ink: the dark surface. Also used for inverted sections in light mode. */
+[data-theme="dark"],
+:root:not([data-theme="dark"]) .surface-invert {
+  color-scheme: dark;
+  --background: #0e0e0c;
+  --foreground: #efece4;
+  --card: #181815;
+  --card-foreground: #efece4;
+  --popover: #181815;
+  --popover-foreground: #efece4;
+  --primary: #ff5a1f;
+  --primary-foreground: #0e0e0c;
+  --secondary: #24241f;
+  --secondary-foreground: #efece4;
+  --muted: #24241f;
+  --muted-foreground: #a3a096;
+  --accent: #24241f;
+  --accent-foreground: #efece4;
+  --destructive: #ff6b4f;
+  --border: rgb(239 236 228 / 0.22);
+  --input: rgb(239 236 228 / 0.26);
+  --ring: #ff5a1f;
+  --signal: #ff5a1f;
+  --acid: #d6ff3d;
+  --tide: #2be0c0;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/60;
+  }
+  html {
+    @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+    scrollbar-color: var(--foreground) transparent;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-optical-sizing: auto;
+    text-rendering: optimizeLegibility;
+  }
+  .surface-invert {
+    @apply bg-background text-foreground;
+  }
+  ::selection {
+    background: var(--signal);
+    color: #11110f;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+  }
+}
+
+/* Type. Archivo carries a width axis, so one family does display and text. */
+@utility display {
+  font-stretch: 66%;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.012em;
+  line-height: 0.86;
+}
+/* The calm voice: sentence case, medium weight. Used for most headings. */
+@utility title {
+  font-stretch: 96%;
+  font-weight: 540;
+  letter-spacing: -0.04em;
+  line-height: 0.98;
+}
+@utility tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  padding: 0.32rem 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+@utility wide {
+  font-stretch: 125%;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+@utility label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+@utility shell {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 4vw, 3.5rem);
+  max-width: 1680px;
+}
+
+@layer components {
+  /* Inside a heading, <em> is the accent word and <i> is the quiet one. */
+  .title em,
+  .display em {
+    font-style: normal;
+    color: var(--signal);
+  }
+  .title i,
+  .display i {
+    font-style: normal;
+    color: var(--muted-foreground);
+  }
+  /* Four corner marks that frame a block, like a viewfinder. */
+  .corners {
+    position: relative;
+  }
+  .corners::before,
+  .corners::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    --c: var(--foreground);
+    --s: 14px;
+    background:
+      linear-gradient(var(--c), var(--c)) top left / var(--s) 1px no-repeat,
+      linear-gradient(var(--c), var(--c)) top left / 1px var(--s) no-repeat,
+      linear-gradient(var(--c), var(--c)) top right / var(--s) 1px no-repeat,
+      linear-gradient(var(--c), var(--c)) top right / 1px var(--s) no-repeat;
+  }
+  .corners::after {
+    transform: scaleY(-1);
+  }
+}
+
+/* SN mark. One diagonal, four bars. Bars slide between S and N. */
+.sn-mark {
+  --sn-cycle: 5.6s;
+  display: block;
+  overflow: visible;
+}
+.sn-mark .sn-h,
+.sn-mark .sn-v {
+  animation-duration: var(--sn-cycle);
+  animation-iteration-count: infinite;
+  animation-timing-function: var(--ease-swift);
+  animation-delay: calc(var(--sn-lag, 0) * 1ms);
+}
+.sn-mark .sn-a {
+  transform-origin: 0 0;
+}
+.sn-mark .sn-b {
+  transform-origin: 120px 120px;
+}
+.sn-mark[data-state="s"] .sn-v {
+  transform: scaleY(0.2);
+}
+.sn-mark[data-state="n"] .sn-h {
+  transform: scaleX(0.2);
+}
+.sn-mark[data-state="morph"] .sn-h {
+  animation-name: sn-h;
+}
+.sn-mark[data-state="morph"] .sn-v {
+  animation-name: sn-v;
+}
+.sn-mark .sn-ghost {
+  transition: transform 0.6s var(--ease-out-soft);
+  transform: translate(calc(var(--sn-dx, 0) * 1px), calc(var(--sn-dy, 0) * 1px));
+}
+.sn-mark:hover .sn-ghost,
+.sn-trip:hover .sn-ghost,
+.sn-mark[data-trip="true"] .sn-ghost {
+  transform: translate(calc(var(--sn-dx, 0) * 3.2px), calc(var(--sn-dy, 0) * 3.2px));
+}
+@keyframes sn-h {
+  0%,
+  34% {
+    transform: scaleX(1);
+  }
+  43%,
+  89% {
+    transform: scaleX(0.2);
+  }
+  98%,
+  100% {
+    transform: scaleX(1);
+  }
+}
+@keyframes sn-v {
+  0%,
+  41% {
+    transform: scaleY(0.2);
+  }
+  50%,
+  82% {
+    transform: scaleY(1);
+  }
+  91%,
+  100% {
+    transform: scaleY(0.2);
+  }
+}
+
+/* Theme switch wipes in from the top left corner, along the logo diagonal. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  animation: theme-wipe 0.75s var(--ease-swift);
+}
+@keyframes theme-wipe {
+  from {
+    clip-path: polygon(0 0, 0 0, 0 0);
+  }
+  to {
+    clip-path: polygon(0 0, 200% 0, 0 200%);
+  }
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.grain {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  opacity: 0.07;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+[data-theme="dark"] .grain {
+  mix-blend-mode: screen;
+  opacity: 0.05;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sn-mark .sn-h,
+  .sn-mark .sn-v {
+    animation: none;
+  }
+  .sn-mark[data-state="morph"] .sn-v {
+    transform: scaleY(0.2);
+  }
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
