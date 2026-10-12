@@ -3,10 +3,10 @@ import shots from "./shots.json";
 export type Project = {
   slug: string;
   name: string;
-  kind: "Website" | "Online store" | "Web app" | "AI tool";
+  kind: "Website" | "Online store" | "Web app" | "AI tool" | "Mobile app";
   sector: string;
   place?: string;
-  status: "Live" | "In build" | "Concept";
+  status: "Live" | "In build" | "Concept" | "On hold";
   summary: string;
   built: string[];
   stack: string[];
@@ -14,9 +14,26 @@ export type Project = {
   featured?: boolean;
   // Only the first frame is shown when the rest would expose private details.
   coverOnly?: boolean;
+  // False when there is no phone capture to show.
+  phone?: boolean;
+  appStore?: string;
+  playStore?: string;
 };
 
 export const projects: Project[] = [
+  {
+    slug: "almuna",
+    name: "Al Muna Bookshop",
+    kind: "Online store",
+    sector: "Books and school supplies",
+    place: "UAE and Oman",
+    status: "On hold",
+    summary:
+      "An online school store for the UAE and Oman. Parents order textbooks, stationery and uniforms in one place.",
+    built: ["Books, stationery and uniform shops", "Search and cart", "Sign up and account"],
+    stack: ["React", "TypeScript"],
+    url: "https://book-site-theta.vercel.app/",
+  },
   {
     slug: "zurich-estate",
     name: "Optimal Immobilien",
@@ -72,7 +89,7 @@ export const projects: Project[] = [
   },
   {
     slug: "dolancer",
-    name: "Dolancer by AssignX",
+    name: "Dolancer",
     kind: "Web app",
     sector: "Work platform",
     place: "India",
@@ -89,6 +106,22 @@ export const projects: Project[] = [
     featured: true,
   },
   {
+    slug: "assignx",
+    name: "AssignX",
+    kind: "Web app",
+    sector: "Managed work marketplace",
+    status: "In build",
+    summary:
+      "A managed work marketplace. A client describes the task, a dedicated supervisor runs a vetted team, and payment stays in escrow until the work is approved.",
+    built: [
+      "Task posting and quotes",
+      "Supervisor and milestone tracking",
+      "Escrow payments",
+    ],
+    stack: ["React", "TypeScript", "Vite", "Tailwind CSS", "Framer Motion"],
+    url: "https://assign-x-three.vercel.app",
+  },
+  {
     slug: "aurex-india",
     name: "Aurex India",
     kind: "Online store",
@@ -100,6 +133,19 @@ export const projects: Project[] = [
     built: ["Product collections", "Mobile OTP sign in", "Offers and checkout"],
     stack: [],
     url: "https://www.aurexindia.com/",
+  },
+  {
+    slug: "vento-tea",
+    name: "Vento Tea",
+    kind: "Online store",
+    sector: "Tea",
+    place: "India",
+    status: "On hold",
+    summary:
+      "A store for Assam and Darjeeling teas, with a scroll led home page and a full shopping flow.",
+    built: ["Scroll led home page", "Cart and wishlist", "Coupons"],
+    stack: ["React 19", "Vite", "Tailwind CSS", "Framer Motion"],
+    phone: false,
   },
   {
     slug: "optimal-cleaning",
@@ -195,3 +241,141 @@ export const mobileShot = (project: Project) =>
 
 export const featured = projects.filter((p) => p.featured);
 export const more = projects.filter((p) => !p.featured);
+
+// Shown as a grid under the main list.
+export const moreProjects: Project[] = [
+  {
+    slug: "dialysisongo",
+    name: "DialysisOnGo",
+    kind: "Web app",
+    sector: "Healthcare",
+    place: "India",
+    status: "Live",
+    summary:
+      "A booking platform for dialysis patients across India. Find a vetted clinic, check free chairs and book a session, at home or while travelling.",
+    built: ["Clinic search by distance", "Live chair availability", "Online booking"],
+    stack: ["Next.js", "TypeScript", "Tailwind CSS", "AWS"],
+    url: "https://dialysisongo.com/en",
+  },
+  {
+    slug: "appy-saude",
+    name: "Appy Saúde",
+    kind: "Online store",
+    sector: "Health marketplace",
+    place: "Angola",
+    status: "Live",
+    summary:
+      "A health marketplace and online pharmacy in Angola. Order medicine from partner pharmacies and book appointments online.",
+    built: ["Pharmacy catalogue and orders", "Appointment booking", "Clinic and hospital directory"],
+    stack: ["Next.js", "TypeScript", "Redux Toolkit", "AWS"],
+    url: "https://www.appysaude.co.ao/en",
+  },
+  {
+    slug: "tracevenue",
+    name: "TraceVenue",
+    kind: "Web app",
+    sector: "Events and venues",
+    status: "Live",
+    summary:
+      "A marketplace that connects event planners with venues, banquet halls and caterers, with quote requests and side by side comparison.",
+    built: ["Venue search", "Quote requests", "Amenity comparison"],
+    stack: ["JavaScript", "REST APIs", "Tailwind CSS"],
+    url: "https://tracevenue.com/",
+  },
+  {
+    slug: "vitalwatch-365",
+    name: "VitalWatch 365",
+    kind: "Web app",
+    sector: "Remote patient care",
+    place: "USA",
+    status: "Live",
+    summary:
+      "A remote patient monitoring platform. Patients follow guided physical therapy with AI pose tracking, and clinicians see vitals from connected medical devices.",
+    built: ["AI therapy trainer", "Exercise library", "Clinician alerts"],
+    stack: ["React", "TensorFlow.js", "MediaPipe", "AWS"],
+    phone: false,
+  },
+  {
+    slug: "pixory",
+    name: "Pixory",
+    kind: "Online store",
+    sector: "Photobooks",
+    place: "UK",
+    status: "Live",
+    summary:
+      "A photobook studio where customers lay out their own hardcover book in the browser and order it.",
+    built: ["Live book editor", "Automatic photo layout", "Stripe checkout"],
+    stack: ["Next.js", "TypeScript", "Canvas API", "Stripe"],
+    url: "https://www.pixoryofficial.com/",
+  },
+  {
+    slug: "browserbase",
+    name: "Browserbase",
+    kind: "Web app",
+    sector: "AI infrastructure",
+    place: "USA",
+    status: "Live",
+    summary:
+      "A cloud platform that runs headless browsers for AI agents, with browser sandboxes and live session replay.",
+    built: ["Browser sandboxes", "Session replay", "Agent framework"],
+    stack: ["TypeScript", "Playwright", "Puppeteer"],
+    url: "https://www.browserbase.com/",
+  },
+  {
+    slug: "fadega",
+    name: "Fadega",
+    kind: "Online store",
+    sector: "Marketplace",
+    status: "In build",
+    summary:
+      "A multi vendor marketplace now in development, with product search, category filters and order handling.",
+    built: ["Multi vendor catalogue", "Search and filters", "Cart and orders"],
+    stack: ["Next.js", "TypeScript", "PostgreSQL", "AWS"],
+    phone: false,
+  },
+  // Mobile apps. Their frames are boards of real app screens, not site captures.
+  {
+    slug: "appy-saude-app",
+    name: "Appy Saúde app",
+    kind: "Mobile app",
+    sector: "Pharmacy and health",
+    place: "Angola",
+    status: "Live",
+    summary:
+      "The Appy Saúde app for iOS and Android. People across Angola order medicine, pay in kwanza and find a pharmacy or clinic near them.",
+    built: ["Medicine orders and payment", "Pharmacy and clinic finder", "Portuguese and English"],
+    stack: ["React Native", "Expo", "Redux Toolkit", "AWS"],
+    appStore: "https://apps.apple.com/in/app/surgypal/id1606001744",
+    playStore: "https://play.google.com/store/apps/details?id=com.appysaude",
+  },
+  {
+    slug: "vitalwatch-365-app",
+    name: "VitalWatch 365 app",
+    kind: "Mobile app",
+    sector: "Remote patient care",
+    place: "USA",
+    status: "Live",
+    summary:
+      "The patient app for VitalWatch 365. It syncs vitals from Bluetooth medical devices and walks patients through their therapy plan.",
+    built: ["Bluetooth device sync", "Therapy plans and exercise library", "Health surveys and reminders"],
+    stack: ["React Native", "TanStack Query", "Bluetooth LE", "AWS"],
+    appStore: "https://apps.apple.com/us/app/vital-watch-365/id6475680352",
+    playStore: "https://play.google.com/store/apps/details?id=com.vitalwatch365.app",
+  },
+  {
+    slug: "fujima",
+    name: "Fujima",
+    kind: "Mobile app",
+    sector: "Wholesale ordering",
+    place: "USA",
+    status: "Live",
+    summary:
+      "A trade ordering app for Fujima, a wholesale supplier of smoking accessories. Business customers browse the catalogue, search by barcode and place orders from their phone.",
+    built: ["Catalogue by category", "Barcode search", "Cart and ordering"],
+    stack: ["React Native", "Expo"],
+    appStore: "https://apps.apple.com/us/app/fujima/id6479015935",
+    phone: false,
+  },
+];
+
+export const allProjects = [...projects, ...moreProjects];

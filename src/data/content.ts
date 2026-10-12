@@ -33,7 +33,7 @@ export const services: {
     name: "Mobile apps",
     line: "iOS and Android apps from one codebase, built with React Native.",
     points: ["React Native", "App Store", "Play Store", "Push alerts"],
-    project: null,
+    project: "appy-saude-app",
   },
 ];
 
@@ -51,7 +51,7 @@ export const stack = [
 ];
 
 export const numbers = [
-  { value: 13, label: "Projects built and in build" },
+  { value: 14, label: "Projects built and in build" },
   { value: 3, label: "Countries we work with" },
   { value: 2, label: "People. No middlemen." },
 ];

@@ -5,7 +5,13 @@ import { AnimatePresence, motion } from "motion/react";
 import Image from "next/image";
 import { Dialog } from "radix-ui";
 import { createContext, useContext, useState } from "react";
-import { frames, mobileShot, projects, type Project } from "@/data/projects";
+import {
+  allProjects,
+  frames,
+  mobileShot,
+  moreProjects,
+  type Project,
+} from "@/data/projects";
 import { Cta } from "./cta";
 import { Frame, Status } from "./shot";
 
@@ -20,7 +26,7 @@ export function ProjectDialogProvider({
   children: React.ReactNode;
 }) {
   const [slug, setSlug] = useState<string | null>(null);
-  const project = projects.find((p) => p.slug === slug);
+  const project = allProjects.find((p) => p.slug === slug);
 
   return (
     <OpenProject.Provider value={setSlug}>
@@ -88,7 +94,9 @@ function Sheet({ project }: { project: Project }) {
 
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <p className="label mb-3 text-muted-foreground">What we built</p>
+                <p className="label mb-3 text-muted-foreground">
+                  {moreProjects.includes(project) ? "Highlights" : "What we built"}
+                </p>
                 <ul className="flex flex-col gap-1.5">
                   {project.built.map((item) => (
                     <li key={item}>{item}</li>
@@ -107,11 +115,23 @@ function Sheet({ project }: { project: Project }) {
               )}
             </div>
 
-            {project.url && (
-              <Cta href={project.url} external tone="signal" size="lg">
-                Visit the live site
-              </Cta>
-            )}
+            <div className="flex flex-col gap-2">
+              {project.url && (
+                <Cta href={project.url} external tone="signal" size="lg">
+                  Visit the live site
+                </Cta>
+              )}
+              {project.appStore && (
+                <Cta href={project.appStore} external size="lg">
+                  App Store
+                </Cta>
+              )}
+              {project.playStore && (
+                <Cta href={project.playStore} external size="lg">
+                  Google Play
+                </Cta>
+              )}
+            </div>
           </div>
         </div>
 
@@ -128,6 +148,7 @@ function Sheet({ project }: { project: Project }) {
               />
             </Frame>
           ))}
+          {project.phone !== false && (
           <div className="flex items-end gap-6">
             <div className="w-40 shrink-0 bg-card p-1.5 sm:w-52">
               <Image
@@ -140,9 +161,12 @@ function Sheet({ project }: { project: Project }) {
               />
             </div>
             <p className="label max-w-[16rem] pb-2 text-muted-foreground">
-              Captured from the real site on desktop and phone.
+              {project.kind === "Mobile app"
+                ? "Screens taken from the app itself."
+                : "Captured from the real site on desktop and phone."}
             </p>
           </div>
+          )}
         </div>
       </div>
     </div>

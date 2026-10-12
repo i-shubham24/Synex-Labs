@@ -40,9 +40,8 @@
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Paper: the light surface. Also used for inverted sections in dark mode. */
-:root,
-[data-theme="dark"] .surface-invert {
+/* Paper: the light surface. */
+:root {
   color-scheme: light;
   --background: #f2efe8;
   --foreground: #11110f;
@@ -93,6 +92,17 @@
   --signal: #ff5a1f;
   --acid: #d6ff3d;
   --tide: #2be0c0;
+}
+
+/* In dark mode an inverted section stays dark: one step lighter than the page,
+   never paper, so the page does not break into white blocks. */
+[data-theme="dark"] .surface-invert {
+  --background: #1a1a17;
+  --card: #24241f;
+  --popover: #24241f;
+  --secondary: #2e2e28;
+  --muted: #2e2e28;
+  --accent: #2e2e28;
 }
 
 @layer base {
@@ -277,6 +287,40 @@
   }
 }
 
+/* Loader: one pass from S to N that stays on N. */
+.sn-mark[data-state="once"] .sn-h,
+.sn-mark[data-state="once"] .sn-v {
+  animation-duration: 1.2s;
+  animation-iteration-count: 1;
+  animation-fill-mode: both;
+}
+.sn-mark[data-state="once"] .sn-h {
+  animation-name: sn-h-once;
+}
+.sn-mark[data-state="once"] .sn-v {
+  animation-name: sn-v-once;
+}
+@keyframes sn-h-once {
+  0%,
+  21% {
+    transform: scaleX(1);
+  }
+  58%,
+  100% {
+    transform: scaleX(0.2);
+  }
+}
+@keyframes sn-v-once {
+  0%,
+  50% {
+    transform: scaleY(0.2);
+  }
+  88%,
+  100% {
+    transform: scaleY(1);
+  }
+}
+
 /* Theme switch wipes in from the top left corner, along the logo diagonal. */
 ::view-transition-old(root),
 ::view-transition-new(root) {
@@ -320,6 +364,13 @@
   }
   .sn-mark[data-state="morph"] .sn-v {
     transform: scaleY(0.2);
+  }
+  .sn-mark[data-state="once"] .sn-h,
+  .sn-mark[data-state="once"] .sn-v {
+    animation: none;
+  }
+  .sn-mark[data-state="once"] .sn-h {
+    transform: scaleX(0.2);
   }
   ::view-transition-new(root) {
     animation: none;

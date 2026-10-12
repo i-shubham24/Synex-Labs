@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { services, stack } from "@/data/content";
-import { frames, projects } from "@/data/projects";
+import { allProjects, cover, frames } from "@/data/projects";
 import { cn } from "@/lib/utils";
 import { SNMark } from "../logo";
 import { Fade, SectionHead } from "../reveal";
@@ -160,13 +160,27 @@ export function Services() {
 
 function Panel({ index, live = false }: { index: number; live?: boolean }) {
   const service = services[index];
-  const project = projects.find((p) => p.slug === service.project);
+  const project = allProjects.find((p) => p.slug === service.project);
   if (!project)
     return (
       <div className="absolute inset-0 grid place-items-center bg-signal text-[#11110f]">
         <SNMark className="w-2/5" ghosts={false} />
       </div>
     );
+  // Apps are not sites, so no browser frame: the card steps through one board
+  // of real screens from every app we have shipped.
+  if (project.kind === "Mobile app") {
+    const apps = allProjects.filter((p) => p.kind === "Mobile app");
+    return (
+      <Shot
+        frames={apps.map(cover)}
+        alt={`Screens from ${apps.map((p) => p.name).join(", ")}`}
+        play={live}
+        sizes="40vw"
+        className="absolute inset-0 aspect-auto"
+      />
+    );
+  }
   return (
     <Frame url={project.url} className="absolute inset-0">
       <Shot

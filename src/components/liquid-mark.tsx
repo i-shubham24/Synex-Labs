@@ -88,6 +88,20 @@ function morphAt(seconds: number) {
   return 0;
 }
 
+// The loader pass: S, one melt into N, then it stays N. Follows the sn-*-once keyframes.
+function onceAt(seconds: number) {
+  return ease(Math.min(1, Math.max(0, (seconds - 0.25) / 0.8)));
+}
+
+type Timing = {
+  // 0 to 1 for a given second of the animation.
+  shape: (seconds: number) => number;
+  // Seconds into the animation, when something else is already keeping time.
+  clock: (() => number) | null;
+  // The second to hold when motion is reduced.
+  rest: number;
+};
+
 function readColor(name: string): [number, number, number] {
   const raw = getComputedStyle(document.documentElement)
     .getPropertyValue(name)
@@ -101,7 +115,14 @@ function readColor(name: string): [number, number, number] {
   ];
 }
 
-export function LiquidMark({ className }: { className?: string }) {
+export function LiquidMark({
+  className,
+  once = false,
+}: {
+  className?: string;
+  // Go from S to N a single time and stay on N. Used by the loader.
+  once?: boolean;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [live, setLive] = useState(false);
 
@@ -111,6 +132,7 @@ function start(
   gl: WebGLRenderingContext,
   canvas: HTMLCanvasElement,
   onLive: () => void,
+  timing: Timing,
 ): () => void {
     const compile = (type: number, src: string) => {
       const shader = gl.createShader(type);
@@ -201,6 +223,7 @@ function start(
       frame = requestAnimationFrame(draw);
       if (!visible || document.hidden) return;
       const t = still ? 1.2 : (now - t0) / 1000;
+      const at = still ? timing.rest : timing.clock ? timing.clock() : t;
       mouse.x += (mouse.tx - mouse.x) * 0.08;
       mouse.y += (mouse.ty - mouse.y) * 0.08;
       trip += (tripTarget - trip) * 0.05;
@@ -208,10 +231,10 @@ function start(
       gl.uniform1f(uTime, t);
       gl.uniform4f(
         uMorph,
-        morphAt(t - LAGS[0]),
-        morphAt(t - LAGS[1]),
-        morphAt(t - LAGS[2]),
-        morphAt(t - LAGS[3]),
+        timing.shape(at - LAGS[0]),
+        timing.shape(at - LAGS[1]),
+        timing.shape(at - LAGS[2]),
+        timing.shape(at - LAGS[3]),
       );
       gl.uniform1f(uTrip, still ? 0 : trip);
       gl.uniform2f(uMouse, mouse.x, mouse.y);
@@ -233,6 +256,17 @@ function start(
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // The fallback mark underneath has been moving in CSS since first paint.
+    // Follow its clock so the canvas takes over mid-motion instead of
+    // starting again from S.
+    const lead = canvas.parentElement
+      ?.getAnimations?.({ subtree: true })
+      .find(
+        (a) => a instanceof CSSAnimation && a.effect?.getTiming().delay === 0,
+      );
+    // The single pass is already over: the still mark underneath is the end state.
+    if (once && lead?.playState === "finished") return;
+
     const gl = canvas.getContext("webgl", { premultipliedAlpha: true, antialias: false });
     if (!gl) return;
 
@@ -240,12 +274,16 @@ function start(
     // and the static SNMark fallback underneath remains visible.
     let cleanup: (() => void) | undefined;
     try {
-      cleanup = start(gl, canvas, () => setLive(true));
+      cleanup = start(gl, canvas, () => setLive(true), {
+        shape: once ? onceAt : morphAt,
+        clock: lead ? () => Number(lead.currentTime ?? 0) / 1000 : null,
+        rest: once ? 9 : 1.2,
+      });
     } catch {
       return;
     }
     return () => cleanup?.();
-  }, []);
+  }, [once]);
 
   return (
     <div className={cn("relative aspect-square", className)} data-cursor="S or N?">
@@ -259,6 +297,7 @@ function start(
       />
       {/* Shown until WebGL is running, and kept if it never starts. */}
       <SNMark
+        state={once ? "once" : "morph"}
         title="Synex Labs logo. The letters S and N share one shape."
         className={cn(
           "absolute inset-[17%] size-[66%] transition-opacity duration-500",

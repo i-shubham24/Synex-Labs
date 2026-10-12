@@ -1,7 +1,8 @@
 import { useId } from "react";
 import { cn } from "@/lib/utils";
 
-type MarkState = "s" | "n" | "morph";
+// "once" plays S to N a single time and stays on N.
+type MarkState = "s" | "n" | "morph" | "once";
 
 const GHOSTS = [
   { color: "var(--tide)", lag: 210, dx: -3, dy: 2 },

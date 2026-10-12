@@ -2,11 +2,19 @@
 
 import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
-import { cover, projects, type Project } from "@/data/projects";
+import { useState } from "react";
+import {
+  cover,
+  frames,
+  moreProjects,
+  projects,
+  type Project,
+} from "@/data/projects";
+import { cn } from "@/lib/utils";
 import { BoxField } from "../box-field";
 import { useOpenProject } from "../project-dialog";
 import { Fade, SectionHead } from "../reveal";
-import { Status } from "../shot";
+import { Frame, Shot, Status } from "../shot";
 
 export function Work() {
   return (
@@ -40,25 +48,27 @@ export function Work() {
           </ul>
         </Fade>
       </div>
+      <More />
     </section>
   );
 }
 
 // One project per row. On hover the row turns into a dark slab, its screen
 // slides in beside the name and the name moves over to make room.
+// In dark mode the slab is a raised dark tone, not paper, so nothing flashes white.
 function Slab({ project }: { project: Project }) {
   const open = useOpenProject();
   return (
     <li className="group relative border-b border-border">
       <span
         aria-hidden
-        className="absolute -inset-y-px inset-x-0 rounded-[10px] bg-foreground opacity-0 transition-opacity duration-300 lg:group-hover:opacity-100"
+        className="absolute -inset-y-px inset-x-0 rounded-[10px] bg-foreground opacity-0 transition-opacity duration-300 lg:group-hover:opacity-100 dark:bg-secondary"
       />
       <button
         type="button"
         onClick={() => open(project.slug)}
         data-cursor="View project"
-        className="relative grid w-full grid-cols-12 items-center gap-x-6 gap-y-4 py-6 text-left transition-colors duration-300 lg:min-h-44 lg:px-6 lg:py-5 lg:group-hover:text-background"
+        className="relative grid w-full grid-cols-12 items-center gap-x-6 gap-y-4 py-6 text-left transition-colors duration-300 lg:min-h-44 lg:px-6 lg:py-5 lg:group-hover:text-background dark:lg:group-hover:text-foreground"
       >
         <span className="label col-span-12 flex items-center justify-between gap-4 text-muted-foreground lg:col-span-3 lg:text-[0.8rem]">
           <span>2026, {project.sector}</span>
@@ -90,5 +100,87 @@ function Slab({ project }: { project: Project }) {
         </span>
       </button>
     </li>
+  );
+}
+
+const SPANS = [
+  "lg:col-span-7",
+  "lg:col-span-5",
+  "lg:col-span-5",
+  "lg:col-span-7",
+  "lg:col-span-4",
+  "lg:col-span-4",
+  "lg:col-span-4",
+  "lg:col-span-4",
+  "lg:col-span-4",
+  "lg:col-span-4",
+];
+
+// The rest of the work as a grid of uneven tiles. Hovering a tile steps through its screens.
+function More() {
+  return (
+    <div className="shell mt-20 grid grid-cols-12 items-start gap-x-6 gap-y-14 md:mt-28">
+      <Fade className="col-span-12 flex items-end justify-between gap-6 border-b border-border pb-5">
+        <p className="title text-3xl md:text-4xl">More projects</p>
+        <p className="label text-muted-foreground">
+          {String(moreProjects.length).padStart(2, "0")} projects
+        </p>
+      </Fade>
+      {moreProjects.map((project, i) => (
+        <Tile
+          key={project.slug}
+          project={project}
+          className={SPANS[i % SPANS.length]}
+          delay={(i % 3) * 0.07}
+        />
+      ))}
+    </div>
+  );
+}
+
+function Tile({
+  project,
+  className,
+  delay,
+}: {
+  project: Project;
+  className: string;
+  delay: number;
+}) {
+  const open = useOpenProject();
+  const [hover, setHover] = useState(false);
+  return (
+    <Fade className={cn("col-span-12 md:col-span-6", className)} delay={delay}>
+      <button
+        type="button"
+        onClick={() => open(project.slug)}
+        onPointerEnter={() => setHover(true)}
+        onPointerLeave={() => setHover(false)}
+        data-cursor="Open"
+        className="group block w-full text-left"
+      >
+        <Frame url={project.url} className="border border-border">
+          <Shot
+            frames={frames(project)}
+            alt={`${project.name} screens`}
+            play={hover}
+            sizes="(max-width: 768px) 92vw, (max-width: 1024px) 46vw, 54vw"
+          />
+        </Frame>
+        <span className="mt-4 flex items-start justify-between gap-4">
+          <span className="title text-2xl transition-colors group-hover:text-signal md:text-[1.75rem]">
+            {project.name}
+          </span>
+          <Status status={project.status} />
+        </span>
+        <span className="mt-3 flex flex-wrap gap-1.5">
+          <span className="tag border-foreground bg-foreground text-background">
+            {project.kind}
+          </span>
+          <span className="tag">{project.sector}</span>
+          {project.place && <span className="tag">{project.place}</span>}
+        </span>
+      </button>
+    </Fade>
   );
 }

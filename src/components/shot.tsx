@@ -114,6 +114,7 @@ const STATUS = {
   Live: "bg-tide",
   "In build": "bg-signal",
   Concept: "bg-acid",
+  "On hold": "bg-muted-foreground",
 };
 
 export function Status({ status }: { status: keyof typeof STATUS }) {

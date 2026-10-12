@@ -30,7 +30,7 @@ export function Audience() {
             const project = projects.find((p) => p.slug === item.project)!;
             return (
               <Fade key={item.name} delay={i * 0.08}>
-                <article className="group flex h-full flex-col gap-8 bg-card p-5 transition-colors duration-500 hover:bg-foreground hover:text-background md:p-6">
+                <article className="group flex h-full flex-col gap-8 bg-card p-5 transition-colors duration-500 hover:bg-foreground hover:text-background md:p-6 dark:hover:bg-secondary dark:hover:text-foreground">
                   <div className="label flex items-center justify-between text-muted-foreground">
                     <span>0{i + 1}</span>
                     <span className="size-2 bg-signal transition-transform duration-500 ease-swift group-hover:scale-[2.2] group-hover:rotate-45" />

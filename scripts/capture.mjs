@@ -3,7 +3,7 @@
 //        npm run shots -- infini  (only the given slugs)
 import puppeteer from "puppeteer-core";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 
 const CHROME =
@@ -15,18 +15,23 @@ const OUT = path.resolve("public/work");
 const sites = [
   { slug: "aurex-india", url: "https://www.aurexindia.com/" },
   { slug: "zurich-estate", url: "https://optimal-immobilien.ch/" },
-  { slug: "vento-tea", url: "https://vento-tea.vercel.app" },
   { slug: "ai-fb-scraper", url: "https://fb-scraper-bot.streamlit.app/", wait: 25000 },
   { slug: "infini", url: "https://infini-three.vercel.app" },
   // Left on its cover: the pages inside carry a private family's names.
   { slug: "invitation-cards", url: "https://invitation-card-groom.vercel.app" },
   { slug: "dolancer", url: "https://dolancer.vercel.app" },
-  { slug: "almuna", url: "https://almuna-books.vercel.app" },
+  { slug: "assignx", url: "https://assign-x-three.vercel.app" },
+  { slug: "almuna", url: "https://book-site-theta.vercel.app/" },
   { slug: "aurex-truck-parts", url: "https://aurex-trucks-parts.vercel.app" },
   { slug: "optimal-cleaning", url: "https://optimal-cleaning-eta.vercel.app" },
   { slug: "eve-pizzeria", url: "https://eve-pizzeria.vercel.app" },
   { slug: "humble-solutions", url: "http://portfolio.humblesolutions.in/" },
   { slug: "fieldofsoma", url: "https://fieldofsoma.vercel.app" },
+  { slug: "dialysisongo", url: "https://dialysisongo.com/en" },
+  { slug: "appy-saude", url: "https://www.appysaude.co.ao/en" },
+  { slug: "tracevenue", url: "https://tracevenue.com/" },
+  { slug: "pixory", url: "https://www.pixoryofficial.com/" },
+  { slug: "browserbase", url: "https://www.browserbase.com/" },
 ];
 
 const DESKTOP = { width: 1440, height: 900, deviceScaleFactor: 1.5 };
@@ -77,7 +82,7 @@ async function dismissOverlays(page) {
           const text = (el.innerText ?? "").trim();
           if (/close|dismiss|schliessen|schließen/i.test(label)) return true;
           if (
-            /^(×|✕|x|close|no thanks.*|decline.*|reject.*|ablehnen|nur notwendige.*)$/i.test(
+            /^(×|✕|x|close|no thanks.*|i decline|decline.*|reject.*|ablehnen|nur notwendige.*)$/i.test(
               text,
             )
           )
@@ -85,12 +90,55 @@ async function dismissOverlays(page) {
           return !text && !!el.querySelector("svg[class*='lucide-x']");
         });
       closers.slice(0, 3).forEach((el) => el.click());
+      // Chat widgets sit in their own frame, where a click cannot reach. Hide them.
+      [...document.querySelectorAll("iframe")]
+        .filter(inOverlay)
+        .forEach((frame) =>
+          frame.style.setProperty("visibility", "hidden", "important"),
+        );
     })
     .catch(() => {});
   await sleep(900);
 }
 
+// Waits until the images and videos on screen have loaded and painted.
+// A fixed pause is not enough: large images can still be decoding when the shot is taken.
+async function settle(page, limit = 15000) {
+  await page.bringToFront();
+  await page
+    .evaluate(async (limit) => {
+      const onScreen = (el) => {
+        const r = el.getBoundingClientRect();
+        return r.bottom > 0 && r.top < innerHeight && r.width > 1 && r.height > 1;
+      };
+      const once = (el, events) =>
+        new Promise((done) =>
+          events.forEach((e) => el.addEventListener(e, done, { once: true })),
+        );
+      const images = [...document.querySelectorAll("img")]
+        .filter(onScreen)
+        .map((img) =>
+          (img.complete ? Promise.resolve() : once(img, ["load", "error"]))
+            .then(() => img.decode())
+            .catch(() => {}),
+        );
+      const videos = [...document.querySelectorAll("video")]
+        .filter(onScreen)
+        .filter((video) => video.readyState < 2)
+        .map((video) => once(video, ["loadeddata", "error"]));
+      const pause = (ms) => new Promise((done) => setTimeout(done, ms));
+      await Promise.race([Promise.all([...images, ...videos]), pause(limit)]);
+      const painted = new Promise((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(done)),
+      );
+      await Promise.race([painted, pause(1000)]);
+    }, limit)
+    .catch(() => {});
+  await sleep(400);
+}
+
 async function prepare(page, site, viewport) {
+  await page.bringToFront();
   try {
     await page.goto(site.url, { waitUntil: "networkidle2", timeout: 60000 });
   } catch (e) {
@@ -128,7 +176,8 @@ async function scrollBy(page, distance) {
     let travelled = 0;
     while (travelled < total) {
       const step = Math.min(120, total - travelled);
-      target.scrollBy(0, step);
+      // Instant, so a site with smooth scrolling still travels the full distance.
+      target.scrollBy({ top: step, behavior: "instant" });
       travelled += step;
       await new Promise((r) => setTimeout(r, 24));
     }
@@ -155,6 +204,7 @@ async function shoot(browser, site) {
   const seen = new Set();
   let frames = 0;
   const save = async () => {
+    await settle(page);
     const buf = await page.screenshot(SHOT);
     const id = hash(buf);
     if (seen.has(id)) return;
@@ -184,6 +234,7 @@ async function shoot(browser, site) {
   await mobile.setUserAgent(MOBILE_UA);
   await mobile.setViewport(MOBILE);
   await prepare(mobile, site, MOBILE);
+  await settle(mobile);
   await mobile.screenshot({ path: path.join(dir, "mobile.webp"), ...SHOT });
   await mobile.close();
 
@@ -201,36 +252,42 @@ const browser = await puppeteer.launch({
   executablePath: CHROME,
   headless: true,
   defaultViewport: DESKTOP,
+  timeout: 120000,
   protocolTimeout: 180000,
-  args: ["--hide-scrollbars", "--force-prefers-reduced-motion=0"],
+  args: [
+    "--hide-scrollbars",
+    "--force-prefers-reduced-motion=0",
+    "--autoplay-policy=no-user-gesture-required",
+  ],
 });
 
-const workers = Array.from({ length: 3 }, async () => {
-  while (queue.length > 0) {
-    const site = queue.shift();
-    try {
-      await shoot(browser, site);
-    } catch (e) {
-      console.log(`FAILED ${site.slug}: ${e.message}`);
-    }
+// One site at a time. A headless tab that is not in front gets no animation
+// frames, so its fade-ins never finish and images come out blank.
+for (const site of queue) {
+  try {
+    await shoot(browser, site);
+  } catch (e) {
+    console.log(`FAILED ${site.slug}: ${e.message}`);
   }
-});
-await Promise.all(workers);
+}
 await browser.close();
 
 // The site reads this to know how many frames each project has.
+// Built from the files on disk, so hand-placed images count too.
 const manifest = {};
-for (const site of sites) {
-  try {
-    const meta = JSON.parse(
-      await readFile(path.join(OUT, site.slug, "meta.json"), "utf8"),
-    );
-    manifest[site.slug] = meta.frames;
-  } catch {
-    manifest[site.slug] = 0;
-  }
+for (const entry of await readdir(OUT, { withFileTypes: true })) {
+  if (!entry.isDirectory()) continue;
+  const files = await readdir(path.join(OUT, entry.name));
+  const count = files.filter((f) => /^desktop-\d+\.webp$/.test(f)).length;
+  if (count > 0) manifest[entry.name] = count;
 }
 await writeFile(
   path.resolve("src/data/shots.json"),
   JSON.stringify(manifest, null, 2) + "\n",
 );
+
+// Next keeps resized copies of each image for hours and cannot be told that a
+// file changed. Drop them, or the site keeps showing the old screenshots.
+for (const dir of [".next/dev/cache/images", ".next/cache/images"]) {
+  await rm(path.resolve(dir), { recursive: true, force: true });
+}
