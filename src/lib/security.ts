@@ -65,20 +65,77 @@ export function validateContact(raw: unknown): {
 // low-traffic contact form; swap for Redis/Upstash when scaling. ---
 const buckets = new Map<string, { count: number; reset: number }>();
 
-export function rateLimit(key: string, limit = 5, windowMs = 60_000): {
+export type RateLimitInfo = {
   allowed: boolean;
   retryAfter: number;
-} {
+  limit: number;
+  remaining: number;
+  /** Epoch seconds when the window resets (for X-RateLimit-Reset). */
+  reset: number;
+};
+
+export function rateLimit(key: string, limit = 5, windowMs = 60_000): RateLimitInfo {
   const now = Date.now();
   const hit = buckets.get(key);
   if (!hit || now > hit.reset) {
     buckets.set(key, { count: 1, reset: now + windowMs });
-    return { allowed: true, retryAfter: 0 };
+    return {
+      allowed: true,
+      retryAfter: 0,
+      limit,
+      remaining: limit - 1,
+      reset: Math.ceil((now + windowMs) / 1000),
+    };
   }
+  const reset = Math.ceil(hit.reset / 1000);
   if (hit.count >= limit)
-    return { allowed: false, retryAfter: Math.ceil((hit.reset - now) / 1000) };
+    return {
+      allowed: false,
+      retryAfter: Math.ceil((hit.reset - now) / 1000),
+      limit,
+      remaining: 0,
+      reset,
+    };
   hit.count += 1;
-  return { allowed: true, retryAfter: 0 };
+  return {
+    allowed: true,
+    retryAfter: 0,
+    limit,
+    remaining: limit - hit.count,
+    reset,
+  };
+}
+
+// --- Idempotency store (in-memory, per instance). Retried or double-clicked
+// submissions carry an Idempotency-Key; the server processes it once and
+// replays the success response. Swap for Redis when running mutiple nodes. ---
+const seenKeys = new Map<string, number>();
+const IDEM_KEY_RE = /^[A-Za-z0-9-]{8,64}$/;
+const IDEM_MAX_KEYS = 1000;
+
+/**
+ * Records an idempotency key. Returns true when this is the first seen
+ * request for the key (process it), false when it is a replay (return the
+ * cached answer instead). Unparsable / missing keys fall through so the
+ * rate limiter governs those requests.
+ */
+export function firstTime(key: string | null, ttlMs = 10 * 60_000): boolean {
+  if (!key || !IDEM_KEY_RE.test(key)) return true;
+  const now = Date.now();
+  if (seenKeys.size >= IDEM_MAX_KEYS) {
+    for (const [k, exp] of [...seenKeys]) {
+      if (exp <= now) seenKeys.delete(k);
+    }
+    while (seenKeys.size >= IDEM_MAX_KEYS) {
+      const oldest = seenKeys.keys().next();
+      if (oldest.done === true) break;
+      seenKeys.delete(oldest.value);
+    }
+  }
+  const exp = seenKeys.get(key);
+  if (exp !== undefined && exp > now) return false;
+  seenKeys.set(key, now + ttlMs);
+  return true;
 }
 
 export function clientIp(headers: Headers): string {

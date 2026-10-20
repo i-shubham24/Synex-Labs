@@ -2,16 +2,27 @@ import { NextResponse } from "next/server";
 import {
   clientIp,
   corsHeaders,
+  firstTime,
   isSameOrigin,
   logContactEvent,
   rateLimit,
   validateContact,
+  type RateLimitInfo,
 } from "@/lib/security";
 import { site } from "@/lib/site";
 
 function noStore(res: NextResponse) {
   res.headers.set("Cache-Control", "no-store");
   return res;
+}
+
+/** Standard rate limit headers for every response of this endpoint. */
+function rateHeaders(rl: RateLimitInfo): Record<string, string> {
+  return {
+    "X-RateLimit-Limit": String(rl.limit),
+    "X-RateLimit-Remaining": String(rl.remaining),
+    "X-RateLimit-Reset": String(rl.reset),
+  };
 }
 
 export async function OPTIONS(req: Request) {
@@ -21,7 +32,7 @@ export async function OPTIONS(req: Request) {
   ))
     res.headers.set(k, v as string);
   res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.headers.set("Access-Control-Allow-Headers", "Content-Type");
+  res.headers.set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key");
   res.headers.set("Access-Control-Max-Age", "600");
   return res;
 }
@@ -40,10 +51,11 @@ export async function POST(req: Request) {
   // Rate limit: 5 briefs / minute / IP.
   const ip = clientIp(req.headers);
   const rl = rateLimit(`contact:${ip}`, 5, 60_000);
+  const headers = { ...cors, ...rateHeaders(rl) } as Record<string, string>;
   if (!rl.allowed) {
     const res = NextResponse.json(
       { ok: false, error: "Too many tries. Wait a minute." },
-      { status: 429, headers: cors },
+      { status: 429, headers },
     );
     res.headers.set("Retry-After", String(rl.retryAfter));
     return noStore(res);
@@ -54,18 +66,29 @@ export async function POST(req: Request) {
     body = await req.json();
   } catch {
     return noStore(
-      NextResponse.json({ ok: false, error: "Invalid payload." }, { status: 400, headers: cors }),
+      NextResponse.json({ ok: false, error: "Invalid payload." }, { status: 400, headers }),
     );
   }
 
   const checked = validateContact(body);
   if (!checked.ok)
     return noStore(
-      NextResponse.json({ ok: false, error: checked.error }, { status: 400, headers: cors }),
+      NextResponse.json({ ok: false, error: checked.error }, { status: 400, headers }),
     );
   if (checked.data?.company === "bot") {
     // Honeypot hit: pretend it worked.
-    return noStore(NextResponse.json({ ok: true }, { headers: cors }));
+    return noStore(NextResponse.json({ ok: true }, { headers }));
+  }
+
+  // Idempotency: a retried / double-clicked submit replays the first answer.
+  if (!firstTime(req.headers.get("idempotency-key"))) {
+    logContactEvent("contact.replay", { need: checked.data?.need });
+    return noStore(
+      NextResponse.json(
+        { ok: true, message: "Brief already received. We reply within a day." },
+        { headers: { ...headers, "X-Idempotent-Replay": "true" } },
+      ),
+    );
   }
 
   // No mail provider is wired yet: log metadata only (PII redacted).
@@ -74,7 +97,7 @@ export async function POST(req: Request) {
   return noStore(
     NextResponse.json(
       { ok: true, message: "Brief received. We reply within a day." },
-      { headers: cors },
+      { headers },
     ),
   );
 }

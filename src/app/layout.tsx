@@ -5,7 +5,7 @@ import { Nav } from "@/components/nav";
 import { Preloader } from "@/components/preloader";
 import { Providers } from "@/components/providers";
 import { themeScript } from "@/components/theme-toggle";
-import { faqs } from "@/data/content";
+import { faqs, services } from "@/data/content";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -61,16 +61,25 @@ export const metadata: Metadata = {
     siteName: site.name,
     title: site.title,
     description: site.description,
-    images: [{ url: "/opengraph-image", width: 1200, height: 630 }],
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Synex Labs — Websites that win you clients.",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: site.title,
     description: site.description,
-    images: ["/twitter-image"],
+    images: [
+      { url: "/twitter-image", alt: "Synex Labs — Websites that win you clients." },
+    ],
     creator: site.twitterHandle,
   },
-  icons: { icon: "/icon.svg" },
+  icons: { icon: "/icon.svg", apple: "/apple-icon.png" },
   manifest: "/manifest.webmanifest",
   category: "technology",
 };
@@ -82,12 +91,29 @@ const organizationJsonLd = {
   url: site.url,
   description: site.description,
   email: site.email,
+  image: `${site.url}/opengraph-image`,
+  logo: `${site.url}/apple-icon.png`,
   address: { "@type": "PostalAddress", addressCountry: "IN" },
   areaServed: ["IN", "CH", "AU"],
   sameAs: [
     "https://github.com/i-shubham24",
     "https://github.com/nitin612",
   ],
+  contactPoint: {
+    "@type": "ContactPoint",
+    contactType: "project enquiries",
+    email: site.email,
+    availableLanguage: "English",
+  },
+  hasOfferCatalog: {
+    "@type": "OfferCatalog",
+    name: "What Synex Labs builds",
+    itemListElement: services.map((s, i) => ({
+      "@type": "Offer",
+      position: i + 1,
+      itemOffered: { "@type": "Service", name: s.name, description: s.line },
+    })),
+  },
 };
 
 const websiteJsonLd = {

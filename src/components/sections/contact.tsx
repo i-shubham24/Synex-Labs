@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { Cta } from "../cta";
@@ -36,6 +36,9 @@ export function Contact() {
   const [need, setNeed] = useState(NEEDS[0]);
   const [status, setStatus] = useState<"idle" | "sending" | "done" | "error">("idle");
   const [error, setError] = useState("");
+  // One idempotency key per submission attempt: double-clicks and network
+  // retries reuse it, the server dedupes. A new response starts a new attempt.
+  const idemKey = useRef("");
 
   // Posts to the same-origin /api/contact (validated + rate-limited server
   // side). Falls back to the visitor's mail app only if the API is unreachable.
@@ -50,14 +53,29 @@ export function Contact() {
       need,
       message: String(data.get("message") ?? ""),
     };
+    if (!idemKey.current) {
+      idemKey.current =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    }
     setStatus("sending");
     setError("");
+    // Hard timeout: an API that never answers falls back to mail, not a hang.
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 8000);
     try {
       const res = await fetch("/api/contact", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idemKey.current,
+        },
         body: JSON.stringify(payload),
+        signal: ctrl.signal,
       });
+      clearTimeout(timeout);
+      idemKey.current = ""; // got an answer: next submit is a fresh attempt
       const json = (await res.json().catch(() => null)) as {
         ok?: boolean;
         error?: string;
@@ -75,7 +93,8 @@ export function Contact() {
       }
       setStatus("error");
     } catch {
-      // Offline / API down: open the mail app with the brief filled in.
+      // Aborted or offline: stop the timer, fall back to the mail app.
+      clearTimeout(timeout);
       const subject = `New project: ${need}`;
       const body = [
         `Name: ${payload.name}`,
