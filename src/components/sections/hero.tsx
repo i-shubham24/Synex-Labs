@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useScroll, useTransform } from "motion/react";
+import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import { useRef } from "react";
 import { Cta } from "../cta";
 import { useIntroDone } from "../intro";
@@ -18,6 +18,7 @@ const EASE = [0.16, 1, 0.3, 1] as const;
 export function Hero() {
   const ref = useRef<HTMLElement>(null);
   const ready = useIntroDone();
+  const still = useReducedMotion();
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start start", "end start"],
@@ -27,8 +28,9 @@ export function Hero() {
     useTransform(scrollYProgress, [0, 1], ["0%", "7%"]),
     useTransform(scrollYProgress, [0, 1], ["0%", "-5%"]),
   ];
-  const markY = useTransform(scrollYProgress, [0, 1], ["0%", "22%"]);
+  const markY = useTransform(scrollYProgress, [0, 1], ["0%", "24%"]);
   const markRotate = useTransform(scrollYProgress, [0, 1], [0, 14]);
+  const markScale = useTransform(scrollYProgress, [0, 1], [1, 1.12]);
 
   return (
     <section
@@ -67,7 +69,7 @@ export function Hero() {
 
             <motion.div
               className="order-1 col-span-12 lg:order-2 lg:col-span-4"
-              style={{ y: markY, rotate: markRotate }}
+              style={{ y: still ? 0 : markY, rotate: still ? 0 : markRotate, scale: still ? 1 : markScale }}
               initial={{ opacity: 0, scale: 0.86 }}
               animate={ready ? { opacity: 1, scale: 1 } : undefined}
               transition={{ duration: 1.1, ease: EASE, delay: 0.25 }}

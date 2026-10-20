@@ -5,6 +5,8 @@ import {
   motion,
   useInView,
   useMotionValue,
+  useReducedMotion,
+  useScroll,
   useTransform,
 } from "motion/react";
 import { useEffect, useRef } from "react";
@@ -36,8 +38,19 @@ function Count({ to }: { to: number }) {
 
 // A ruled grid: three facts on top, three reasons below.
 export function Numbers() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const still = useReducedMotion();
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start end", "end start"],
+  });
+  const yNum1 = useTransform(scrollYProgress, [0, 1], ["20px", "-20px"]);
+  const yNum2 = useTransform(scrollYProgress, [0, 1], ["-16px", "16px"]);
+  const yNum3 = useTransform(scrollYProgress, [0, 1], ["26px", "-26px"]);
+  const numOffsets = [yNum1, yNum2, yNum3];
+
   return (
-    <section id="why" className="py-24 md:py-36">
+    <section ref={sectionRef} id="why" className="relative overflow-hidden py-24 md:py-36">
       <div className="shell">
         <SectionHead
           index="03"
@@ -52,15 +65,18 @@ export function Numbers() {
 
         <Fade className="mt-14 md:mt-20">
           <div className="grid border-t border-l border-border md:grid-cols-3">
-            {numbers.map((item) => (
+            {numbers.map((item, i) => (
               <div
                 key={item.label}
                 className="flex flex-col justify-between gap-10 border-r border-b border-border p-6 md:p-9"
               >
                 <p className="label text-muted-foreground">{item.label}</p>
-                <p className="display text-[clamp(6rem,13vw,13rem)] leading-[0.8] tabular-nums">
+                <motion.p
+                  style={{ y: still ? 0 : numOffsets[i] }}
+                  className="display text-[clamp(6rem,13vw,13rem)] leading-[0.8] tabular-nums will-change-transform"
+                >
                   <Count to={item.value} />
-                </p>
+                </motion.p>
               </div>
             ))}
 

@@ -1,6 +1,8 @@
 "use client";
 
+import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import Image from "next/image";
+import { useRef } from "react";
 import { audiences } from "@/data/content";
 import { cover, projects } from "@/data/projects";
 import { useOpenProject } from "../project-dialog";
@@ -10,9 +12,17 @@ import { Fade, SectionHead } from "../reveal";
 // pointer and its example project lifts into view.
 export function Audience() {
   const open = useOpenProject();
+  const ref = useRef<HTMLElement>(null);
+  const still = useReducedMotion();
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"],
+  });
+  const yEven = useTransform(scrollYProgress, [0, 1], ["24px", "-24px"]);
+  const yOdd = useTransform(scrollYProgress, [0, 1], ["-28px", "28px"]);
 
   return (
-    <section id="who" className="pb-24 md:pb-36">
+    <section ref={ref} id="who" className="pb-24 md:pb-36">
       <div className="shell">
         <SectionHead
           index="04"
@@ -25,12 +35,15 @@ export function Audience() {
           ]}
         />
 
-        <div className="mt-14 grid gap-3 sm:grid-cols-2 md:mt-20 lg:grid-cols-4">
+        <div className="mt-14 grid gap-3 sm:grid-cols-2 md:mt-20 lg:grid-cols-4 py-4">
           {audiences.map((item, i) => {
             const project = projects.find((p) => p.slug === item.project)!;
             return (
-              <Fade key={item.name} delay={i * 0.08}>
-                <article className="group flex h-full flex-col gap-8 bg-card p-5 transition-colors duration-500 hover:bg-foreground hover:text-background md:p-6 dark:hover:bg-secondary dark:hover:text-foreground">
+              <Fade key={item.name} delay={i * 0.08} className="h-full">
+                <motion.article
+                  style={{ y: still ? 0 : (i % 2 === 0 ? yEven : yOdd) }}
+                  className="group flex h-full flex-col gap-8 bg-card p-5 transition-colors duration-500 hover:bg-foreground hover:text-background md:p-6 dark:hover:bg-secondary dark:hover:text-foreground will-change-transform"
+                >
                   <div className="label flex items-center justify-between text-muted-foreground">
                     <span>0{i + 1}</span>
                     <span className="size-2 bg-signal transition-transform duration-500 ease-swift group-hover:scale-[2.2] group-hover:rotate-45" />
@@ -68,7 +81,7 @@ export function Audience() {
                       </li>
                     ))}
                   </ul>
-                </article>
+                </motion.article>
               </Fade>
             );
           })}

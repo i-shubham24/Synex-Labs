@@ -1,8 +1,9 @@
 "use client";
 
 import { ArrowUpRight } from "lucide-react";
+import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import Image from "next/image";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   cover,
   frames,
@@ -17,11 +18,27 @@ import { Fade, SectionHead } from "../reveal";
 import { Frame, Shot, Status } from "../shot";
 
 export function Work() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const still = useReducedMotion();
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start end", "end start"],
+  });
+  const boxY = useTransform(scrollYProgress, [0, 1], ["-25%", "35%"]);
+  const boxRotate = useTransform(scrollYProgress, [0, 1], [-14, 18]);
+  const boxScale = useTransform(scrollYProgress, [0, 0.5, 1], [0.92, 1.1, 0.94]);
+
   return (
-    <section id="work" className="overflow-x-clip pt-24 md:pt-36">
+    <section ref={sectionRef} id="work" className="overflow-x-clip pt-24 md:pt-36">
       <div className="shell relative">
-        {/* A disc of small boxes behind the intro text, top right. */}
-        <BoxField className="pointer-events-none absolute -top-44 -right-[5%] w-[min(64vw,36rem)] max-lg:opacity-50" />
+        {/* A disc of small boxes behind the intro text with 3D depth parallax. */}
+        <motion.div
+          aria-hidden
+          style={{ y: still ? 0 : boxY, rotate: still ? 0 : boxRotate, scale: still ? 1 : boxScale }}
+          className="pointer-events-none absolute -top-44 -right-[5%] w-[min(64vw,36rem)] max-lg:opacity-50 will-change-transform"
+        >
+          <BoxField className="size-full" />
+        </motion.div>
         <SectionHead
           className="relative"
           index="01"

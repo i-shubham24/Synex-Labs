@@ -185,7 +185,7 @@ function start(
     });
 
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const size = Math.round(canvas.clientWidth * dpr);
       if (size === 0 || canvas.width === size) return;
       canvas.width = size;

@@ -1,5 +1,7 @@
 "use client";
 
+import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
+import { useRef } from "react";
 import { team } from "@/data/content";
 import { RollLink } from "../cta";
 import { SNMark } from "../logo";
@@ -8,8 +10,19 @@ import { Fade, SectionHead } from "../reveal";
 const STATES = ["s", "n"] as const;
 
 export function Team() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const still = useReducedMotion();
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start end", "end start"],
+  });
+  const yOffsets = [
+    useTransform(scrollYProgress, [0, 1], ["20px", "-20px"]),
+    useTransform(scrollYProgress, [0, 1], ["-20px", "20px"]),
+  ];
+
   return (
-    <section id="team" className="surface-invert py-24 md:py-36">
+    <section ref={sectionRef} id="team" className="surface-invert overflow-hidden py-24 md:py-36">
       <div className="shell">
         <SectionHead
           index="06"
@@ -25,10 +38,13 @@ export function Team() {
           aside="Two developers, one studio. The same two people plan, design, build and support your project from the first call to launch."
         />
 
-        <div className="mt-14 grid border-t border-l border-border md:mt-20 md:grid-cols-2">
+        <div className="mt-14 grid border-t border-l border-border md:mt-20 md:grid-cols-2 py-3">
           {team.map((person, i) => (
-            <Fade key={person.name} delay={i * 0.12}>
-              <article className="sn-trip group flex h-full flex-col gap-10 border-r border-b border-border p-6 transition-colors duration-500 hover:bg-card md:p-10">
+            <Fade key={person.name} delay={i * 0.12} className="h-full">
+              <motion.article
+                style={{ y: still ? 0 : yOffsets[i] }}
+                className="sn-trip group flex h-full flex-col gap-10 border-r border-b border-border p-6 transition-colors duration-500 hover:bg-card md:p-10 will-change-transform"
+              >
                 <div className="flex items-start justify-between gap-6">
                   <SNMark
                     state={STATES[i]}
@@ -67,7 +83,7 @@ export function Team() {
                     </RollLink>
                   )}
                 </div>
-              </article>
+              </motion.article>
             </Fade>
           ))}
         </div>

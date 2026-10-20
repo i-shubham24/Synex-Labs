@@ -1,8 +1,8 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { motion } from "motion/react";
-import { useState } from "react";
+import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
+import { useRef, useState } from "react";
 import { services, stack } from "@/data/content";
 import { allProjects, cover, frames } from "@/data/projects";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,15 @@ const NONE = "polygon(0% 0%, 0% 0%, 0% 0%)";
 export function Services() {
   const [active, setActive] = useState(0);
   const [previous, setPrevious] = useState(0);
+  const sectionRef = useRef<HTMLElement>(null);
+  const still = useReducedMotion();
+  const { scrollYProgress } = useScroll({
+    target: sectionRef,
+    offset: ["start end", "end start"],
+  });
+  const panelRotateX = useTransform(scrollYProgress, [0.1, 0.5, 0.9], [4, 0, -4]);
+  const panelScale = useTransform(scrollYProgress, [0.1, 0.5, 0.9], [0.96, 1, 0.97]);
+  const panelY = useTransform(scrollYProgress, [0.1, 0.9], ["-12px", "12px"]);
 
   function pick(i: number) {
     if (i === active) return;
@@ -26,6 +35,7 @@ export function Services() {
 
   return (
     <section
+      ref={sectionRef}
       id="services"
       className="surface-invert mt-28 py-24 md:mt-40 md:py-36"
     >
@@ -116,25 +126,35 @@ export function Services() {
           </ul>
 
           <div className="col-span-5 hidden lg:block">
-            <div className="sticky top-28">
-              <div className="relative aspect-[16/11.4] overflow-hidden border border-border">
-                <Panel index={previous} />
-                <motion.div
-                  key={active}
-                  className="absolute inset-0"
-                  initial={{ clipPath: NONE }}
-                  animate={{ clipPath: FULL }}
-                  transition={{ duration: 0.75, ease: EASE }}
-                >
-                  <Panel index={active} live />
-                </motion.div>
-              </div>
-              <p className="label mt-3 flex justify-between text-muted-foreground">
-                <span>{services[active].name}</span>
-                <span>
-                  0{active + 1} / 0{services.length}
-                </span>
-              </p>
+            <div className="sticky top-28 [perspective:1200px]">
+              <motion.div
+                style={{
+                  rotateX: still ? 0 : panelRotateX,
+                  scale: still ? 1 : panelScale,
+                  y: still ? 0 : panelY,
+                  transformStyle: "preserve-3d",
+                }}
+                className="will-change-transform"
+              >
+                <div className="relative aspect-[16/11.4] overflow-hidden border border-border shadow-2xl">
+                  <Panel index={previous} />
+                  <motion.div
+                    key={active}
+                    className="absolute inset-0"
+                    initial={{ clipPath: NONE }}
+                    animate={{ clipPath: FULL }}
+                    transition={{ duration: 0.75, ease: EASE }}
+                  >
+                    <Panel index={active} live />
+                  </motion.div>
+                </div>
+                <p className="label mt-3 flex justify-between text-muted-foreground">
+                  <span>{services[active].name}</span>
+                  <span>
+                    0{active + 1} / 0{services.length}
+                  </span>
+                </p>
+              </motion.div>
             </div>
           </div>
         </div>

@@ -50,7 +50,7 @@ export function Preloader() {
             exit={{ scale: 0.6, opacity: 0 }}
             transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
           >
-            <LiquidMark once className="w-[clamp(8rem,15vw,11.5rem)]" />
+            <LiquidMark once className="w-[clamp(16rem,30vw,24rem)]" />
           </motion.div>
         </motion.div>
       )}
