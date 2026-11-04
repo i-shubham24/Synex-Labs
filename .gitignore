@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# page text saved by npm run shots
+/.shots/
+
 # next.js
 /.next/
 /out/

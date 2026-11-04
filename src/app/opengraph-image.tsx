@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Synex Labs — Websites that win you clients";
+export const alt = "Synex Labs. Websites that win you clients.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -28,7 +28,7 @@ export default function OpengraphImage() {
           Websites that win you clients.
         </div>
         <div style={{ fontSize: 30, color: "#a3a096" }}>
-          Web studio / India — Switzerland — Australia
+          Web studio / India, Switzerland, Australia, UAE
         </div>
       </div>
     ),

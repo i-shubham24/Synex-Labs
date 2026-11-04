@@ -59,9 +59,16 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
+        // Share images and icons are fetched by other sites (chat apps, social
+        // previews), so they may be loaded cross-origin.
+        source: "/:path(opengraph-image|twitter-image|icon.svg|apple-icon.png|icon-512.png)",
+        headers: [{ key: "Cross-Origin-Resource-Policy", value: "cross-origin" }],
+      },
+      {
         // Site screenshots: cacheable but revalidatable, since `npm run shots`
-        // can overwrite them under the same names.
-        source: "/work/(.*)",
+        // can overwrite them under the same names. Only the image files: the
+        // project pages under /work/<slug> must not be cached for a week.
+        source: "/work/:slug/:file(.+\\.webp)",
         headers: [
           {
             key: "Cache-Control",

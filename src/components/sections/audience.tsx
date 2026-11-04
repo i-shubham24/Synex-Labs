@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRef } from "react";
 import { audiences } from "@/data/content";
 import { cover, projects } from "@/data/projects";
-import { useOpenProject } from "../project-dialog";
+import { opensInPlace, projectPath, useOpenProject } from "../project-dialog";
 import { Fade, SectionHead } from "../reveal";
 
 // Who the studio builds for: four cards in a row. A card turns dark under the
@@ -49,12 +49,16 @@ export function Audience() {
                     <span className="size-2 bg-signal transition-transform duration-500 ease-swift group-hover:scale-[2.2] group-hover:rotate-45" />
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => open(project.slug)}
+                  <a
+                    href={projectPath(project.slug)}
+                    onClick={(e) => {
+                      if (!opensInPlace(e)) return;
+                      e.preventDefault();
+                      open(project.slug);
+                    }}
                     data-cursor="Open"
                     aria-label={`View ${project.name}`}
-                    className="overflow-hidden"
+                    className="block overflow-hidden"
                   >
                     <Image
                       src={cover(project)}
@@ -64,7 +68,7 @@ export function Audience() {
                       sizes="(max-width: 640px) 92vw, (max-width: 1024px) 46vw, 23vw"
                       className="aspect-[16/10] w-full object-cover object-top transition-transform duration-700 ease-out-soft group-hover:scale-105"
                     />
-                  </button>
+                  </a>
 
                   <div className="flex flex-1 flex-col gap-3">
                     <h3 className="title text-[1.75rem]">{item.name}</h3>

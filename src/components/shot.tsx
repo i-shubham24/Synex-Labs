@@ -112,6 +112,7 @@ export function Shot({
 
 const STATUS = {
   Live: "bg-tide",
+  Completed: "bg-foreground",
   "In build": "bg-signal",
   Concept: "bg-acid",
   "On hold": "bg-muted-foreground",

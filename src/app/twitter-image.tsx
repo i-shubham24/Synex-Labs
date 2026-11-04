@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Synex Labs — Websites that win you clients";
+export const alt = "Synex Labs. Websites that win you clients.";
 export const size = { width: 1200, height: 600 };
 export const contentType = "image/png";
 

@@ -2,6 +2,7 @@
 
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
+import { useIntroDone } from "./intro";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -11,13 +12,18 @@ export function Rise({
   delay = 0,
   className,
   show,
+  afterIntro = false,
 }: {
   children: React.ReactNode;
   delay?: number;
   className?: string;
   // Pass a boolean to control it by hand instead of by scroll position.
   show?: boolean;
+  // Rise once the opening curtain has lifted (for text already on screen).
+  afterIntro?: boolean;
 }) {
+  const introDone = useIntroDone();
+  if (afterIntro) show = introDone;
   const controlled = show !== undefined;
   return (
     <span
@@ -103,7 +109,7 @@ export function SectionHead({
   return (
     <div className={cn("flex flex-col gap-8 md:gap-12", className)}>
       <Label index={index}>{label}</Label>
-      <div className="grid grid-cols-12 items-end gap-x-8 gap-y-6">
+      <div className="grid grid-cols-12 items-end gap-x-4 sm:gap-x-8 gap-y-6">
         <h2 className="title col-span-12 text-[clamp(2.6rem,6.3vw,6.4rem)] lg:col-span-8">
           {title.map((line, i) => (
             <Rise key={i} delay={i * 0.08}>

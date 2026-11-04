@@ -4,7 +4,6 @@ import { Cta } from "@/components/cta";
 export const metadata: Metadata = {
   title: "Page not found",
   description: "This page does not exist. Head back to Synex Labs.",
-  robots: { index: false, follow: false },
 };
 
 export default function NotFound() {

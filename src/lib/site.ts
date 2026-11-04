@@ -3,7 +3,7 @@ export const site = {
   name: "Synex Labs",
   title: "Synex Labs | Websites, online stores and web apps",
   description:
-    "Synex Labs is a two person studio. We design and build websites, online stores, web apps and AI tools for businesses in India, Switzerland and Australia.",
+    "Synex Labs is a two person studio. We design and build websites, online stores, web apps and AI tools for businesses in India, Switzerland, Australia and the UAE.",
   email: "shubhamkaler24@gmail.com",
   base: "India",
   timeZone: "Asia/Kolkata",
@@ -26,11 +26,12 @@ export const site = {
     { name: "Shubhampreet Singh" },
     { name: "Nitin Kumar" },
   ],
+  // Rooted at "/" so they also work from a project page.
   nav: [
-    { label: "Work", href: "#work" },
-    { label: "Services", href: "#services" },
-    { label: "Process", href: "#process" },
-    { label: "Team", href: "#team" },
-    { label: "FAQ", href: "#faq" },
+    { label: "Work", href: "/#work" },
+    { label: "Services", href: "/#services" },
+    { label: "Process", href: "/#process" },
+    { label: "Team", href: "/#team" },
+    { label: "FAQ", href: "/#faq" },
   ],
 };

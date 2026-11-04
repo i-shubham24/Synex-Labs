@@ -1,37 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Synex Labs
 
-## Getting Started
+Portfolio site for Synex Labs, a two person web studio (Shubham and Nitin).
+Next.js 16 with React 19, Tailwind CSS 4 and Motion.
 
-First, run the development server:
+## Run it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3000
+npm run build      # production build
+npm run start      # serve the build
+npm run lint
+npm run links      # check every project link still answers
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Where things live
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `src/data/projects.ts`: every project on the site, in display order. The main list is `projects`, the grid under it is `moreProjects`. Each one also gets its own page at `/work/<slug>` with its own share image.
+- `src/data/content.ts`: services, numbers, process steps, team, FAQ.
+- `src/lib/site.ts`: studio name, email, URL and nav.
+- `public/work/<slug>/`: screenshots, `desktop-N.webp` and `mobile.webp`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Screenshots
 
-## Learn More
+`npm run shots` captures fresh screenshots of every project listed in `scripts/capture.mjs` (needs Chrome).
+`npm run shots -- infini` captures only the slugs you name. It rewrites `src/data/shots.json`, clears the Next image cache and saves page text to `.shots/` (gitignored, never in `public/`).
 
-To learn more about Next.js, take a look at the following resources:
+## Environment
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Copy `.env.example` to `.env.local`. `NEXT_PUBLIC_SITE_URL` sets the canonical URL for metadata, the sitemap and share images.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Setting | What it turns on | Without it |
+| --- | --- | --- |
+| `RESEND_API_KEY`, `CONTACT_TO_EMAIL` | Contact briefs are emailed to the studio | The form opens the visitor's mail app with the brief filled in |
+| `CONTACT_FROM_EMAIL` | Sender on a domain verified in Resend | `onboarding@resend.dev` (only delivers to the Resend account's own address) |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | One contact rate limit shared by every server instance | A separate in-memory limit per instance |
+| `GOOGLE_SITE_VERIFICATION` | Search Console ownership tag | No tag |
 
-## Deploy on Vercel
+Page view analytics (Vercel Web Analytics, no cookies) switch on by themselves when the site is built on Vercel. Enable Web Analytics in the Vercel project settings.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Checks
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# Synex-Labs
+- `.github/workflows/ci.yml`: lint, typecheck and build on every push.
+- `.github/workflows/links.yml`: every Monday, `npm run links` checks each project's live site and store pages. A failed run means a link on the site has gone dead.

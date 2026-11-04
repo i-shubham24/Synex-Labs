@@ -11,10 +11,28 @@ import { Services } from "@/components/sections/services";
 import { Statement } from "@/components/sections/statement";
 import { Team } from "@/components/sections/team";
 import { Work } from "@/components/sections/work";
+import { faqs } from "@/data/content";
+
+// FAQ structured data belongs on the page that shows the FAQ.
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map((f) => ({
+    "@type": "Question",
+    name: f.q,
+    acceptedAnswer: { "@type": "Answer", text: f.a },
+  })),
+};
 
 export default function Home() {
   return (
     <ProjectDialogProvider>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
       <main>
         <Hero />
         <Reel />

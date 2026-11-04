@@ -87,7 +87,7 @@ export function Hero() {
             <p className="col-span-12 max-w-[34rem] text-lg leading-snug text-pretty md:col-span-6 md:text-xl lg:col-span-5">
               Synex Labs is a two person studio. We design and build websites,
               online stores, web apps and AI tools for businesses in India,
-              Switzerland and Australia.
+              Switzerland, Australia and the UAE.
             </p>
             <div className="col-span-12 flex flex-wrap items-center gap-3 md:col-span-6 md:justify-end lg:col-span-7">
               <Cta href="#contact" tone="signal" size="lg" className="min-w-52">

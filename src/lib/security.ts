@@ -7,8 +7,9 @@
 // - No file-upload, webhook, or object API -> BOLA/SSRF/signature checks N/A
 //   until such endpoints exist. Stubs below are ready for that day.
 // - What IS enforced: strict headers + CSP (next.config), same-origin contact
-//   API with honeypot + rate limiting, server-side validation, redacted logs,
-//   tight CORS, no source maps, no secrets client-side.
+//   API with honeypot, fill-time check and rate limiting, server-side
+//   validation, redacted logs, tight CORS, no source maps, no secrets
+//   client-side.
 
 const MAX_LEN = { name: 100, email: 254, need: 40, message: 2000 } as const;
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,}$/;
@@ -19,9 +20,12 @@ export type ContactInput = {
   email: string;
   need: string;
   message: string;
-  /** Honeypot — real users never fill this. Bots do. */
+  /** Honeypot. Real users never fill this. Bots do. */
   company?: string;
 };
+
+// A person needs well over this long to type a name, an email and a message.
+const MIN_FILL_MS = 3000;
 
 /** Strip angle brackets / control chars so reflected values can't break HTML. */
 export function sanitizeText(value: unknown, max: number): string {
@@ -39,8 +43,11 @@ export function validateContact(raw: unknown): {
   if (typeof raw !== "object" || raw === null)
     return { ok: false, error: "Invalid payload." };
   const r = raw as Record<string, unknown>;
-  // Honeypot: pretend success so bots learn nothing.
-  if (typeof r.company === "string" && r.company.trim() !== "")
+  // Honeypot, or a form sent faster than anyone can type (or with no timing
+  // at all, which only a script posting straight to the API would do):
+  // pretend success so bots learn nothing.
+  const tooFast = typeof r.elapsed !== "number" || r.elapsed < MIN_FILL_MS;
+  if ((typeof r.company === "string" && r.company.trim() !== "") || tooFast)
     return {
       ok: true,
       data: { name: "", email: "", need: "", message: "", company: "bot" },
@@ -61,8 +68,9 @@ export function validateContact(raw: unknown): {
   return { ok: true, data };
 }
 
-// --- Tiny in-memory token bucket (per runtime instance). Good enough for a
-// low-traffic contact form; swap for Redis/Upstash when scaling. ---
+// --- Fixed-window rate limit. Uses Upstash Redis when its REST URL and token
+// are set, so every server instance shares one count. Otherwise, or if Redis
+// is unreachable, falls back to a per-instance in-memory window. ---
 const buckets = new Map<string, { count: number; reset: number }>();
 
 export type RateLimitInfo = {
@@ -74,8 +82,56 @@ export type RateLimitInfo = {
   reset: number;
 };
 
-export function rateLimit(key: string, limit = 5, windowMs = 60_000): RateLimitInfo {
+async function sharedHit(
+  key: string,
+  windowMs: number,
+): Promise<{ count: number; reset: number } | null> {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  const k = `rl:${key}`;
+  try {
+    const res = await fetch(`${url.replace(/\/$/, "")}/pipeline`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      // Start the window only if it is not running, then count this hit.
+      body: JSON.stringify([
+        ["SET", k, "0", "PX", String(windowMs), "NX"],
+        ["INCR", k],
+        ["PTTL", k],
+      ]),
+      signal: AbortSignal.timeout(2000),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const [, count, ttl] = (await res.json()) as { result: number }[];
+    if (typeof count?.result !== "number") return null;
+    return { count: count.result, reset: Date.now() + Math.max(0, ttl?.result ?? windowMs) };
+  } catch {
+    return null;
+  }
+}
+
+export async function rateLimit(
+  key: string,
+  limit = 5,
+  windowMs = 60_000,
+): Promise<RateLimitInfo> {
   const now = Date.now();
+  const shared = await sharedHit(key, windowMs);
+  if (shared) {
+    const allowed = shared.count <= limit;
+    return {
+      allowed,
+      retryAfter: allowed ? 0 : Math.ceil((shared.reset - now) / 1000),
+      limit,
+      remaining: Math.max(0, limit - shared.count),
+      reset: Math.ceil(shared.reset / 1000),
+    };
+  }
+  // Drop expired windows so a stream of new IPs cannot grow the map forever.
+  if (buckets.size > 5000)
+    for (const [k, v] of buckets) if (now > v.reset) buckets.delete(k);
   const hit = buckets.get(key);
   if (!hit || now > hit.reset) {
     buckets.set(key, { count: 1, reset: now + windowMs });
@@ -138,6 +194,41 @@ export function firstTime(key: string | null, ttlMs = 10 * 60_000): boolean {
   return true;
 }
 
+/** Forgets a key whose request failed, so a retry is processed again. */
+export function forgetKey(key: string | null) {
+  if (key) seenKeys.delete(key);
+}
+
+/**
+ * Reads a request body as JSON, giving up once it passes `max` bytes so an
+ * oversized upload is never buffered whole. Returns `undefined` when the body
+ * is too large and throws when it is not valid JSON.
+ */
+export async function readJsonCapped(req: Request, max: number): Promise<unknown> {
+  if (Number(req.headers.get("content-length") ?? 0) > max) return undefined;
+  const reader = req.body?.getReader();
+  if (!reader) return JSON.parse("");
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel();
+      return undefined;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
 export function clientIp(headers: Headers): string {
   return (
     headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -146,16 +237,19 @@ export function clientIp(headers: Headers): string {
   );
 }
 
-/** Same-origin guard: browsers send Origin/Referer on fetch POSTs. */
+/**
+ * Same-origin guard: browsers send Origin/Referer on fetch POSTs. The form may
+ * be served from the canonical domain or from the host this request reached
+ * (localhost, a preview deploy). A browser always sends the real Host, so a
+ * cross-site page still fails the check.
+ */
 export function isSameOrigin(req: Request, siteUrl: string): boolean {
   const origin = req.headers.get("origin");
   const referer = req.headers.get("referer");
   if (!origin && !referer) return true; // non-browser / curl: let rate limit decide
   try {
-    const site = new URL(siteUrl).origin;
-    if (origin && new URL(origin).origin !== site) return false;
-    if (!origin && referer && new URL(referer).origin !== site) return false;
-    return true;
+    const allowed = new Set([new URL(siteUrl).origin, new URL(req.url).origin]);
+    return allowed.has(new URL(origin ?? referer ?? "").origin);
   } catch {
     return false;
   }

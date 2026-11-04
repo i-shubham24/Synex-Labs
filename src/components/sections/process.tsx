@@ -69,7 +69,7 @@ export function Process() {
       <div className="shell">
         <Label index="05">Process</Label>
 
-        <div className="mt-8 grid grid-cols-12 gap-x-8 md:mt-12">
+        <div className="mt-8 grid grid-cols-12 gap-x-4 sm:gap-x-8 md:mt-12">
           <div className="col-span-12 lg:col-span-7">
             <div className="lg:sticky lg:top-24">
               <div className="flex items-start justify-between gap-6">

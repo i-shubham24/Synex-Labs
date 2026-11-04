@@ -1,3 +1,5 @@
+import { projects } from "./projects";
+
 export const services: {
   name: string;
   line: string;
@@ -50,9 +52,12 @@ export const stack = [
   "AWS",
 ];
 
+// Where the clients in the main project list are based.
+export const countries = ["India", "Switzerland", "Australia", "UAE"];
+
 export const numbers = [
-  { value: 14, label: "Projects built and in build" },
-  { value: 3, label: "Countries we work with" },
+  { value: projects.length, label: "Projects built and in build" },
+  { value: countries.length, label: "Countries we work with" },
   { value: 2, label: "People. No middlemen." },
 ];
 
@@ -120,7 +125,7 @@ export const faqs = [
   },
   {
     q: "Do you work with clients outside India?",
-    a: "Yes. We already work with clients in Switzerland and Australia, and we plan calls around your time zone.",
+    a: "Yes. We already work with clients in Switzerland, Australia and the UAE, and we plan calls around your time zone.",
   },
   {
     q: "Who will I talk to?",

@@ -2,6 +2,7 @@
 
 import { ArrowUpRight } from "lucide-react";
 import { motion, useMotionValueEvent, useScroll } from "motion/react";
+import Link from "next/link";
 import { useState } from "react";
 import { site } from "@/lib/site";
 import { cn } from "@/lib/utils";
@@ -32,10 +33,14 @@ export function Nav() {
     setHidden(y > before && y > 500);
   });
 
+  // On the home page, close the menu and then scroll. Anywhere else the
+  // section is not on the page, so let the link load the home page.
   function jump(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
+    const target = document.querySelector(href.slice(href.indexOf("#")));
+    if (!target) return;
     e.preventDefault();
     setOpen(false);
-    setTimeout(() => document.querySelector(href)?.scrollIntoView(), 320);
+    setTimeout(() => target.scrollIntoView(), 320);
   }
 
   return (
@@ -46,44 +51,44 @@ export function Nav() {
     >
       <div className="shell pt-3">
         <div className="flex h-12 items-stretch border border-border bg-background">
-          <a
-            href="#top"
-            aria-label="Synex Labs, back to top"
+          <Link
+            href="/#top"
+            aria-label="Synex Labs home"
             data-cursor="Top"
             className="flex items-center gap-2.5 border-r border-border px-3 md:px-4"
           >
             <SNMark className="size-6" ghosts={false} />
             <span className="wide text-[0.72rem] max-sm:hidden">Synex Labs</span>
-          </a>
+          </Link>
 
-          <nav aria-label="Main" className="hidden items-stretch md:flex">
+          <nav aria-label="Main" className="hidden items-stretch lg:flex">
             {site.nav.map((item, i) => (
-              <a
+              <Link
                 key={item.href}
                 href={item.href}
                 className={cn(CELL, "label gap-2 border-r")}
               >
                 <span className={cn(INK, "text-signal")}>0{i + 1}</span>
                 <span className={INK}>{item.label}</span>
-              </a>
+              </Link>
             ))}
           </nav>
 
           <ThemeToggle className="ml-auto h-full border-l border-border" />
-          <a
-            href="#contact"
+          <Link
+            href="/#contact"
             className="group hidden items-center gap-3 bg-foreground px-4 text-sm font-semibold text-background transition-colors duration-300 hover:bg-signal hover:text-[#11110f] sm:flex"
           >
             Start a project
             <ArrowUpRight className="size-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </a>
+          </Link>
 
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <button
                 type="button"
                 aria-label="Open menu"
-                className="grid w-12 place-items-center border-l border-border md:hidden"
+                className="grid w-12 place-items-center border-l border-border lg:hidden"
               >
                 <span className="grid gap-1.5">
                   <span className="block h-0.5 w-5 bg-foreground" />
@@ -106,9 +111,9 @@ export function Nav() {
                 aria-label="Mobile"
                 className="flex flex-1 flex-col justify-center px-5"
               >
-                {[...site.nav, { label: "Contact", href: "#contact" }].map(
+                {[...site.nav, { label: "Contact", href: "/#contact" }].map(
                   (item, i) => (
-                    <a
+                    <Link
                       key={item.href}
                       href={item.href}
                       onClick={(e) => jump(e, item.href)}
@@ -118,7 +123,7 @@ export function Nav() {
                       <span className="label text-muted-foreground">
                         0{i + 1}
                       </span>
-                    </a>
+                    </Link>
                   ),
                 )}
               </nav>

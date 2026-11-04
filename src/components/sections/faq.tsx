@@ -14,7 +14,7 @@ export function Faq() {
       <div className="shell">
         <Label index="07">FAQ</Label>
 
-        <div className="mt-8 grid grid-cols-12 gap-x-8 gap-y-10 md:mt-12">
+        <div className="mt-8 grid grid-cols-12 gap-x-4 sm:gap-x-8 gap-y-10 md:mt-12">
           <div className="col-span-12 lg:col-span-5">
             <h2 className="title text-[clamp(2.6rem,6.3vw,6.4rem)] lg:sticky lg:top-28">
               <Rise>Good to</Rise>

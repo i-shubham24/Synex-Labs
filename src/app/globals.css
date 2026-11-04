@@ -357,6 +357,12 @@
   opacity: 0.06;
 }
 
+/* The opening curtain plays once per visit. Later pages in the same visit
+   start without it (the flag is set before paint by the theme script). */
+[data-intro="seen"] .curtain {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sn-mark .sn-h,
   .sn-mark .sn-v {

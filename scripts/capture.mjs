@@ -10,6 +10,9 @@ const CHROME =
   process.env.CHROME_PATH ??
   "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const OUT = path.resolve("public/work");
+// Page text for writing project copy. Kept out of public/: it can carry
+// private details (names, dates) that the screenshots deliberately leave out.
+const META = path.resolve(".shots");
 
 // tap: click the middle of the screen first (sites that open with a cover).
 const sites = [
@@ -22,11 +25,15 @@ const sites = [
   { slug: "dolancer", url: "https://dolancer.vercel.app" },
   { slug: "assignx", url: "https://assign-x-three.vercel.app" },
   { slug: "almuna", url: "https://book-site-theta.vercel.app/" },
-  { slug: "aurex-truck-parts", url: "https://aurex-trucks-parts.vercel.app" },
+  { slug: "aurex-truck-parts", url: "https://aurextruckparts.com.au/" },
   { slug: "optimal-cleaning", url: "https://optimal-cleaning-eta.vercel.app" },
   { slug: "eve-pizzeria", url: "https://eve-pizzeria.vercel.app" },
   { slug: "humble-solutions", url: "http://portfolio.humblesolutions.in/" },
   { slug: "fieldofsoma", url: "https://fieldofsoma.vercel.app" },
+  // Opens on a loader and a WebGL hero, so give it longer to settle.
+  { slug: "bliss-wedding", url: "https://bliss-wedding.vercel.app", wait: 9000 },
+  { slug: "aditya-flexipack", url: "https://aditya-flexipack.vercel.app/" },
+  { slug: "idael-alfonso", url: "https://idael-olfonso.vercel.app/", wait: 6000 },
   { slug: "dialysisongo", url: "https://dialysisongo.com/en" },
   { slug: "appy-saude", url: "https://www.appysaude.co.ao/en" },
   { slug: "tracevenue", url: "https://tracevenue.com/" },
@@ -238,8 +245,9 @@ async function shoot(browser, site) {
   await mobile.screenshot({ path: path.join(dir, "mobile.webp"), ...SHOT });
   await mobile.close();
 
+  await mkdir(META, { recursive: true });
   await writeFile(
-    path.join(dir, "meta.json"),
+    path.join(META, `${site.slug}.json`),
     JSON.stringify({ ...meta, url: site.url, frames }, null, 2),
   );
   console.log(`done ${site.slug} (${frames} desktop frames, page ${meta.height}px)`);

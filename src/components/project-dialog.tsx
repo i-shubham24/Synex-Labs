@@ -2,21 +2,36 @@
 
 import { X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import Image from "next/image";
 import { Dialog } from "radix-ui";
 import { createContext, useContext, useState } from "react";
-import {
-  allProjects,
-  frames,
-  mobileShot,
-  moreProjects,
-  type Project,
-} from "@/data/projects";
+import { allProjects, type Project } from "@/data/projects";
 import { Cta } from "./cta";
-import { Frame, Status } from "./shot";
+import { ProjectFacts, ProjectScreens } from "./project-parts";
+import { Status } from "./shot";
 
 const OpenProject = createContext<(slug: string) => void>(() => {});
 export const useOpenProject = () => useContext(OpenProject);
+
+export const projectPath = (slug: string) => `/work/${slug}`;
+
+// A plain left click opens the quick view. Modified clicks keep the link.
+export const opensInPlace = (e: React.MouseEvent) =>
+  e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey;
+
+// A project link that opens the quick view in place. It is still a real link,
+// so crawlers find the project's page and a modified click (new tab, new
+// window) goes straight there.
+export function useProjectLink(slug: string) {
+  const open = useOpenProject();
+  return {
+    href: projectPath(slug),
+    onClick: (e: React.MouseEvent<HTMLAnchorElement>) => {
+      if (!opensInPlace(e)) return;
+      e.preventDefault();
+      open(slug);
+    },
+  };
+}
 
 const EASE = [0.7, 0, 0.2, 1] as const;
 
@@ -64,7 +79,6 @@ export function ProjectDialogProvider({
 }
 
 function Sheet({ project }: { project: Project }) {
-  const shots = frames(project);
   return (
     <div className="shell pb-16">
       <div className="sticky top-0 z-10 flex items-center justify-between gap-6 bg-background py-4">
@@ -77,7 +91,7 @@ function Sheet({ project }: { project: Project }) {
         </Dialog.Close>
       </div>
 
-      <div className="grid grid-cols-12 gap-x-8 gap-y-10 pt-4">
+      <div className="grid grid-cols-12 gap-x-4 sm:gap-x-8 gap-y-10 pt-4">
         <div className="col-span-12 lg:col-span-4">
           <div className="flex flex-col gap-7 lg:sticky lg:top-24">
             <Dialog.Title className="display text-[clamp(2.75rem,5.6vw,5.5rem)]">
@@ -91,82 +105,15 @@ function Sheet({ project }: { project: Project }) {
             <Dialog.Description className="text-xl leading-snug text-pretty">
               {project.summary}
             </Dialog.Description>
-
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <p className="label mb-3 text-muted-foreground">
-                  {moreProjects.includes(project) ? "Highlights" : "What we built"}
-                </p>
-                <ul className="flex flex-col gap-1.5">
-                  {project.built.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-              {project.stack.length > 0 && (
-                <div>
-                  <p className="label mb-3 text-muted-foreground">Built with</p>
-                  <ul className="flex flex-col gap-1.5">
-                    {project.stack.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-2">
-              {project.url && (
-                <Cta href={project.url} external tone="signal" size="lg">
-                  Visit the live site
-                </Cta>
-              )}
-              {project.appStore && (
-                <Cta href={project.appStore} external size="lg">
-                  App Store
-                </Cta>
-              )}
-              {project.playStore && (
-                <Cta href={project.playStore} external size="lg">
-                  Google Play
-                </Cta>
-              )}
-            </div>
+            <ProjectFacts project={project} />
+            <Cta href={projectPath(project.slug)} size="lg">
+              Full case study
+            </Cta>
           </div>
         </div>
 
         <div className="col-span-12 flex flex-col gap-6 lg:col-span-8">
-          {shots.map((src, i) => (
-            <Frame key={src} url={project.url}>
-              <Image
-                src={src}
-                alt={`${project.name}, screen ${i + 1}`}
-                width={1440}
-                height={900}
-                sizes="(max-width: 1024px) 92vw, 62vw"
-                className="h-auto w-full"
-              />
-            </Frame>
-          ))}
-          {project.phone !== false && (
-          <div className="flex items-end gap-6">
-            <div className="w-40 shrink-0 bg-card p-1.5 sm:w-52">
-              <Image
-                src={mobileShot(project)}
-                alt={`${project.name} on a phone`}
-                width={390}
-                height={844}
-                sizes="208px"
-                className="h-auto w-full"
-              />
-            </div>
-            <p className="label max-w-[16rem] pb-2 text-muted-foreground">
-              {project.kind === "Mobile app"
-                ? "Screens taken from the app itself."
-                : "Captured from the real site on desktop and phone."}
-            </p>
-          </div>
-          )}
+          <ProjectScreens project={project} />
         </div>
       </div>
     </div>

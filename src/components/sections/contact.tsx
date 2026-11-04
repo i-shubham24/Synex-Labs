@@ -39,9 +39,15 @@ export function Contact() {
   // One idempotency key per submission attempt: double-clicks and network
   // retries reuse it, the server dedupes. A new response starts a new attempt.
   const idemKey = useRef("");
+  // When the form appeared. The server drops briefs sent faster than a person types.
+  const shownAt = useRef(0);
+  useEffect(() => {
+    shownAt.current = Date.now();
+  }, []);
 
   // Posts to the same-origin /api/contact (validated + rate-limited server
-  // side). Falls back to the visitor's mail app only if the API is unreachable.
+  // side). Falls back to the visitor's mail app when the API is unreachable
+  // or cannot deliver the brief itself.
   async function send(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -52,6 +58,18 @@ export function Contact() {
       email: String(data.get("email") ?? ""),
       need,
       message: String(data.get("message") ?? ""),
+      elapsed: Date.now() - shownAt.current,
+    };
+    const openMail = () => {
+      const subject = `New project: ${need}`;
+      const body = [
+        `Name: ${payload.name}`,
+        `Email: ${payload.email}`,
+        `Looking for: ${need}`,
+        "",
+        payload.message,
+      ].join("\n");
+      window.location.href = `mailto:${site.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     };
     if (!idemKey.current) {
       idemKey.current =
@@ -80,10 +98,17 @@ export function Contact() {
         ok?: boolean;
         error?: string;
         message?: string;
+        fallback?: "mail";
       } | null;
       if (res.ok && json?.ok) {
         setStatus("done");
         form.reset();
+        return;
+      }
+      if (json?.fallback === "mail") {
+        openMail();
+        setError("We opened your mail app with the brief filled in. Press send there.");
+        setStatus("error");
         return;
       }
       if (res.status === 429) {
@@ -95,22 +120,14 @@ export function Contact() {
     } catch {
       // Aborted or offline: stop the timer, fall back to the mail app.
       clearTimeout(timeout);
-      const subject = `New project: ${need}`;
-      const body = [
-        `Name: ${payload.name}`,
-        `Email: ${payload.email}`,
-        `Looking for: ${need}`,
-        "",
-        payload.message,
-      ].join("\n");
-      window.location.href = `mailto:${site.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      openMail();
       setStatus("idle");
     }
   }
 
   return (
     <section id="contact" className="bg-signal py-24 text-[#11110f] md:py-36">
-      <div className="shell grid grid-cols-12 gap-x-8 gap-y-14">
+      <div className="shell grid grid-cols-12 gap-x-4 sm:gap-x-8 gap-y-14">
         <div className="col-span-12 flex flex-col justify-between gap-12 lg:col-span-6">
           <div className="flex flex-col gap-5">
             <p className="label flex gap-3">
@@ -139,7 +156,13 @@ export function Contact() {
         </div>
 
         <Fade className="col-span-12 lg:col-span-5 lg:col-start-8" delay={0.1}>
-          <form onSubmit={send} className="flex flex-col gap-3" noValidate={false}>
+          {/* POST, so a visitor without JavaScript never puts the brief in the URL. */}
+          <form
+            method="post"
+            onSubmit={send}
+            className="flex flex-col gap-3"
+            noValidate={false}
+          >
             {/* Honeypot: hidden from humans, catches bots. */}
             <input
               type="text"

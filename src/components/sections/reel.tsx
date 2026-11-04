@@ -13,7 +13,7 @@ import {
 import Image from "next/image";
 import { useEffect, useRef } from "react";
 import { cover, projects } from "@/data/projects";
-import { useOpenProject } from "../project-dialog";
+import { opensInPlace, projectPath, useOpenProject } from "../project-dialog";
 
 const wrap = (min: number, max: number, v: number) => {
   const range = max - min;
@@ -71,10 +71,14 @@ export function Reel() {
       >
         {[0, 1].map((copy) =>
           projects.map((project, i) => (
-            <button
+            <a
               key={`${copy}-${project.slug}`}
-              type="button"
-              onClick={() => open(project.slug)}
+              href={projectPath(project.slug)}
+              onClick={(e) => {
+                if (!opensInPlace(e)) return;
+                e.preventDefault();
+                open(project.slug);
+              }}
               data-cursor="Open"
               aria-hidden={copy === 1}
               tabIndex={copy === 1 ? -1 : 0}
@@ -90,7 +94,7 @@ export function Reel() {
                 priority={copy === 0 && i < 4}
                 className="aspect-[16/10] w-full object-cover object-top transition-transform duration-700 ease-out-soft group-hover:scale-[1.04]"
               />
-            </button>
+            </a>
           )),
         )}
       </motion.div>

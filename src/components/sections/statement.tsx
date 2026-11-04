@@ -15,7 +15,7 @@ export function Statement() {
       className="surface-invert py-20 md:py-32"
     >
       <div className="shell">
-        <div className="grid grid-cols-12 items-center gap-x-8 gap-y-10">
+        <div className="grid grid-cols-12 items-center gap-x-4 sm:gap-x-8 gap-y-10">
           <div className="sn-trip col-span-4 col-start-2 max-w-36 lg:col-span-2 lg:col-start-1 lg:max-w-none">
             <SNMark state="s" className="scroll-spin" title="The letter S" />
           </div>
@@ -39,7 +39,7 @@ export function Statement() {
           </p>
         </div>
 
-        <div className="mt-20 grid grid-cols-12 gap-x-8 gap-y-8 md:mt-28">
+        <div className="mt-20 grid grid-cols-12 gap-x-4 sm:gap-x-8 gap-y-8 md:mt-28">
           <Fade className="col-span-12 lg:col-span-3">
             <span className="tag border-transparent bg-foreground/10">
               Who we are

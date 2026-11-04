@@ -6,7 +6,7 @@ export type Project = {
   kind: "Website" | "Online store" | "Web app" | "AI tool" | "Mobile app";
   sector: string;
   place?: string;
-  status: "Live" | "In build" | "Concept" | "On hold";
+  status: "Live" | "Completed" | "In build" | "Concept" | "On hold";
   summary: string;
   built: string[];
   stack: string[];
@@ -35,22 +35,34 @@ export const projects: Project[] = [
     url: "https://book-site-theta.vercel.app/",
   },
   {
-    slug: "zurich-estate",
-    name: "Optimal Immobilien",
+    slug: "bliss-wedding",
+    name: "The Bliss",
     kind: "Website",
-    sector: "Real estate",
-    place: "Zurich, Switzerland",
-    status: "Live",
+    sector: "Wedding planning",
+    place: "Amritsar, India",
+    status: "In build",
     summary:
-      "A site for a Zurich broker who sells homes at a fixed price. Every page leads to one thing: a free property valuation.",
+      "A site for a wedding planner in Amritsar. A 3D stack of bridal bangles opens the story, and every ceremony, wedding and review leads to one step: an enquiry.",
+    built: ["3D bangle hero", "Ceremony and wedding pages", "Enquiry and WhatsApp flow"],
+    stack: ["Next.js", "TypeScript", "Three.js", "GSAP"],
+    url: "https://bliss-wedding.vercel.app",
+  },
+  {
+    slug: "aditya-flexipack",
+    name: "Aditya Flexipack",
+    kind: "Website",
+    sector: "Flexible packaging",
+    place: "Kanpur, India",
+    status: "In build",
+    summary:
+      "A site for a flexible packaging manufacturer in Kanpur. Six product lines, step-by-step factory stations and BRCGS credentials lead to one goal: a partner brief.",
     built: [
-      "Property valuation funnel",
-      "Scroll animations",
-      "Custom design system",
+      "Product catalogue and packaging types",
+      "Campus process stations",
+      "B2B brief and sample inquiry",
     ],
-    stack: ["Next.js", "TypeScript"],
-    url: "https://optimal-immobilien.ch/",
-    featured: true,
+    stack: ["Next.js", "TypeScript", "Tailwind CSS", "Motion"],
+    url: "https://aditya-flexipack.vercel.app/",
   },
   {
     slug: "aurex-truck-parts",
@@ -58,7 +70,7 @@ export const projects: Project[] = [
     kind: "Online store",
     sector: "Truck and trailer parts",
     place: "Victoria, Australia",
-    status: "In build",
+    status: "Live",
     summary:
       "A parts store for Australian truck and trailer fleets. Buyers search by part number, build a quote cart and check out.",
     built: [
@@ -67,7 +79,7 @@ export const projects: Project[] = [
       "Admin dashboard and API",
     ],
     stack: ["React", "Vite", "Tailwind CSS", "Node.js"],
-    url: "https://aurex-trucks-parts.vercel.app",
+    url: "https://aurextruckparts.com.au/",
     featured: true,
   },
   {
@@ -75,7 +87,7 @@ export const projects: Project[] = [
     name: "Infini",
     kind: "Website",
     sector: "Precision manufacturing",
-    status: "In build",
+    status: "Completed",
     summary:
       "A company site for a surface finishing firm. It explains a technical process in plain steps and points engineers to one action: send a part.",
     built: [
@@ -133,6 +145,41 @@ export const projects: Project[] = [
     built: ["Product collections", "Mobile OTP sign in", "Offers and checkout"],
     stack: [],
     url: "https://www.aurexindia.com/",
+  },
+  {
+    slug: "zurich-estate",
+    name: "Optimal Immobilien",
+    kind: "Website",
+    sector: "Real estate",
+    place: "Zurich, Switzerland",
+    status: "Live",
+    summary:
+      "A site for a Zurich broker who sells homes at a fixed price. Every page leads to one thing: a free property valuation.",
+    built: [
+      "Property valuation funnel",
+      "Scroll animations",
+      "Custom design system",
+    ],
+    stack: ["Next.js", "TypeScript"],
+    url: "https://optimal-immobilien.ch/",
+    featured: true,
+  },
+  {
+    slug: "idael-alfonso",
+    name: "Idael Alfonso",
+    kind: "Website",
+    sector: "Personal training",
+    place: "Zurich, Switzerland",
+    status: "In build",
+    summary:
+      "A site for a personal trainer and nutrition coach in Zurich. Walkthrough of private studio sessions, home visits and video training, leading to a free consultation.",
+    built: [
+      "Programme and session overview",
+      "Training clips and credentials",
+      "Free consultation booking",
+    ],
+    stack: ["React", "TypeScript", "Tailwind CSS", "Three.js"],
+    url: "https://idael-olfonso.vercel.app/",
   },
   {
     slug: "vento-tea",
@@ -216,11 +263,12 @@ export const projects: Project[] = [
     name: "AI Deal Scanner",
     kind: "AI tool",
     sector: "Marketplace automation",
-    status: "In build",
+    status: "Live",
     summary:
       "A scanner that watches marketplace listings, scores each deal with AI and sends price drop alerts on Telegram.",
     built: ["Live listing scanner", "AI deal and scam check", "Telegram alerts"],
     stack: ["Python", "Streamlit", "Gemini"],
+    url: "https://fb-scraper-bot.streamlit.app/",
   },
 ];
 
@@ -238,9 +286,6 @@ export const cover = (project: Project) =>
   `/work/${project.slug}/desktop-1.webp`;
 export const mobileShot = (project: Project) =>
   `/work/${project.slug}/mobile.webp`;
-
-export const featured = projects.filter((p) => p.featured);
-export const more = projects.filter((p) => !p.featured);
 
 // Shown as a grid under the main list.
 export const moreProjects: Project[] = [
@@ -345,8 +390,8 @@ export const moreProjects: Project[] = [
       "The Appy Saúde app for iOS and Android. People across Angola order medicine, pay in kwanza and find a pharmacy or clinic near them.",
     built: ["Medicine orders and payment", "Pharmacy and clinic finder", "Portuguese and English"],
     stack: ["React Native", "Expo", "Redux Toolkit", "AWS"],
-    appStore: "https://apps.apple.com/in/app/surgypal/id1606001744",
-    playStore: "https://play.google.com/store/apps/details?id=com.appysaude",
+    appStore: "https://apps.apple.com/us/app/appy-sa%C3%BAde/id1220393420",
+    playStore: "https://play.google.com/store/apps/details?id=ao.co.appy.saude",
   },
   {
     slug: "vitalwatch-365-app",

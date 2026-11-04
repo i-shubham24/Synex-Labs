@@ -8,7 +8,7 @@ export function Footer() {
   return (
     <footer className="surface-invert overflow-x-clip pt-16 pb-8 md:pt-24">
       <div className="shell">
-        <div className="grid grid-cols-12 gap-x-8 gap-y-10">
+        <div className="grid grid-cols-12 gap-x-4 sm:gap-x-8 gap-y-10">
           <div className="col-span-12 flex flex-col gap-5 md:col-span-6">
             <SNLogo className="text-6xl md:text-7xl" />
             <p className="max-w-sm text-lg leading-snug text-pretty">
@@ -21,7 +21,7 @@ export function Footer() {
             aria-label="Footer"
             className="label col-span-6 flex flex-col items-start gap-3 md:col-span-3"
           >
-            {[...site.nav, { label: "Contact", href: "#contact" }].map((item) => (
+            {[...site.nav, { label: "Contact", href: "/#contact" }].map((item) => (
               <RollLink key={item.href} href={item.href}>
                 {item.label}
               </RollLink>

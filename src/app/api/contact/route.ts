@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
+import { sendBrief } from "@/lib/mail";
 import {
   clientIp,
   corsHeaders,
   firstTime,
+  forgetKey,
   isSameOrigin,
   logContactEvent,
   rateLimit,
+  readJsonCapped,
   validateContact,
   type RateLimitInfo,
 } from "@/lib/security";
@@ -50,7 +53,7 @@ export async function POST(req: Request) {
 
   // Rate limit: 5 briefs / minute / IP.
   const ip = clientIp(req.headers);
-  const rl = rateLimit(`contact:${ip}`, 5, 60_000);
+  const rl = await rateLimit(`contact:${ip}`, 5, 60_000);
   const headers = { ...cors, ...rateHeaders(rl) } as Record<string, string>;
   if (!rl.allowed) {
     const res = NextResponse.json(
@@ -61,14 +64,19 @@ export async function POST(req: Request) {
     return noStore(res);
   }
 
+  // The longest valid brief is about 2.5 KB of text, so 16 KB is plenty.
   let body: unknown;
   try {
-    body = await req.json();
+    body = await readJsonCapped(req, 16 * 1024);
   } catch {
     return noStore(
       NextResponse.json({ ok: false, error: "Invalid payload." }, { status: 400, headers }),
     );
   }
+  if (body === undefined)
+    return noStore(
+      NextResponse.json({ ok: false, error: "Message too long." }, { status: 413, headers }),
+    );
 
   const checked = validateContact(body);
   if (!checked.ok)
@@ -81,7 +89,8 @@ export async function POST(req: Request) {
   }
 
   // Idempotency: a retried / double-clicked submit replays the first answer.
-  if (!firstTime(req.headers.get("idempotency-key"))) {
+  const idemKey = req.headers.get("idempotency-key");
+  if (!firstTime(idemKey)) {
     logContactEvent("contact.replay", { need: checked.data?.need });
     return noStore(
       NextResponse.json(
@@ -91,8 +100,19 @@ export async function POST(req: Request) {
     );
   }
 
-  // No mail provider is wired yet: log metadata only (PII redacted).
-  logContactEvent("contact.received", { need: checked.data?.need });
+  const delivery = await sendBrief(checked.data!);
+  logContactEvent(`contact.${delivery}`, { need: checked.data?.need });
+  if (delivery !== "sent") {
+    // Nothing reached the inbox. Let a retry through, and have the browser
+    // hand the brief to the visitor's own mail app so it is not lost.
+    forgetKey(idemKey);
+    return noStore(
+      NextResponse.json(
+        { ok: false, fallback: "mail", error: "Opening your mail app instead." },
+        { status: 503, headers },
+      ),
+    );
+  }
 
   return noStore(
     NextResponse.json(

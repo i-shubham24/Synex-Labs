@@ -11,9 +11,10 @@ import {
   projects,
   type Project,
 } from "@/data/projects";
+import { countries } from "@/data/content";
 import { cn } from "@/lib/utils";
 import { BoxField } from "../box-field";
-import { useOpenProject } from "../project-dialog";
+import { useProjectLink } from "../project-dialog";
 import { Fade, SectionHead } from "../reveal";
 import { Frame, Shot, Status } from "../shot";
 
@@ -51,7 +52,8 @@ export function Work() {
           ]}
           aside={
             <>
-              {projects.length} projects for clients in three countries. Hover
+              {projects.length} projects for clients in {countries.length}{" "}
+              countries. Hover
               a row to see the site, click it to open every screen.
             </>
           }
@@ -74,16 +76,15 @@ export function Work() {
 // slides in beside the name and the name moves over to make room.
 // In dark mode the slab is a raised dark tone, not paper, so nothing flashes white.
 function Slab({ project }: { project: Project }) {
-  const open = useOpenProject();
+  const link = useProjectLink(project.slug);
   return (
     <li className="group relative border-b border-border">
       <span
         aria-hidden
         className="absolute -inset-y-px inset-x-0 rounded-[10px] bg-foreground opacity-0 transition-opacity duration-300 lg:group-hover:opacity-100 dark:bg-secondary"
       />
-      <button
-        type="button"
-        onClick={() => open(project.slug)}
+      <a
+        {...link}
         data-cursor="View project"
         className="relative grid w-full grid-cols-12 items-center gap-x-6 gap-y-4 py-6 text-left transition-colors duration-300 lg:min-h-44 lg:px-6 lg:py-5 lg:group-hover:text-background dark:lg:group-hover:text-foreground"
       >
@@ -115,7 +116,7 @@ function Slab({ project }: { project: Project }) {
           </span>
           <ArrowUpRight className="size-6 shrink-0 transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1" />
         </span>
-      </button>
+      </a>
     </li>
   );
 }
@@ -164,13 +165,12 @@ function Tile({
   className: string;
   delay: number;
 }) {
-  const open = useOpenProject();
+  const link = useProjectLink(project.slug);
   const [hover, setHover] = useState(false);
   return (
     <Fade className={cn("col-span-12 md:col-span-6", className)} delay={delay}>
-      <button
-        type="button"
-        onClick={() => open(project.slug)}
+      <a
+        {...link}
         onPointerEnter={() => setHover(true)}
         onPointerLeave={() => setHover(false)}
         data-cursor="Open"
@@ -197,7 +197,7 @@ function Tile({
           <span className="tag">{project.sector}</span>
           {project.place && <span className="tag">{project.place}</span>}
         </span>
-      </button>
+      </a>
     </Fade>
   );
 }

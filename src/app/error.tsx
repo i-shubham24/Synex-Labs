@@ -27,8 +27,8 @@ export default function Error({
         That <i>did not work.</i>
       </h1>
       <p className="max-w-md text-lg leading-snug text-pretty text-muted-foreground">
-        Give it another go. If it keeps failing, reach us directly by email —
-        a human replies within a day.
+        Give it another go. If it keeps failing, reach us directly by email.
+        A human replies within a day.
       </p>
       <div className="flex flex-wrap gap-3">
         <Cta tone="signal" size="lg" className="min-w-44" onClick={reset}>

@@ -1,0 +1,21 @@
+name: Project links
+
+# Every Monday, check that each project's live site and store page still
+# answers. A failed run means a link on the site is dead.
+on:
+  schedule:
+    - cron: "30 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check links
+        run: node scripts/check-links.mjs

@@ -52,7 +52,7 @@ export function Services() {
           aside="Five things we do well. Pick one, or mix them into a single project."
         />
 
-        <div className="mt-14 grid grid-cols-12 gap-x-8 md:mt-20">
+        <div className="mt-14 grid grid-cols-12 gap-x-4 sm:gap-x-8 md:mt-20">
           <ul className="col-span-12 flex flex-col border-t border-border lg:col-span-7">
             {services.map((service, i) => {
               const on = i === active;

@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import { Archivo, Geist_Mono } from "next/font/google";
 import { Cursor } from "@/components/cursor";
@@ -5,7 +6,7 @@ import { Nav } from "@/components/nav";
 import { Preloader } from "@/components/preloader";
 import { Providers } from "@/components/providers";
 import { themeScript } from "@/components/theme-toggle";
-import { faqs, services } from "@/data/content";
+import { services } from "@/data/content";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -66,7 +67,7 @@ export const metadata: Metadata = {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "Synex Labs — Websites that win you clients.",
+        alt: "Synex Labs. Websites that win you clients.",
       },
     ],
   },
@@ -75,13 +76,17 @@ export const metadata: Metadata = {
     title: site.title,
     description: site.description,
     images: [
-      { url: "/twitter-image", alt: "Synex Labs — Websites that win you clients." },
+      { url: "/twitter-image", alt: "Synex Labs. Websites that win you clients." },
     ],
     creator: site.twitterHandle,
   },
   icons: { icon: "/icon.svg", apple: "/apple-icon.png" },
   manifest: "/manifest.webmanifest",
   category: "technology",
+  // Search Console ownership tag, when its token is configured.
+  ...(process.env.GOOGLE_SITE_VERIFICATION && {
+    verification: { google: process.env.GOOGLE_SITE_VERIFICATION },
+  }),
 };
 
 const organizationJsonLd = {
@@ -90,11 +95,10 @@ const organizationJsonLd = {
   name: site.name,
   url: site.url,
   description: site.description,
-  email: site.email,
   image: `${site.url}/opengraph-image`,
   logo: `${site.url}/apple-icon.png`,
   address: { "@type": "PostalAddress", addressCountry: "IN" },
-  areaServed: ["IN", "CH", "AU"],
+  areaServed: ["IN", "CH", "AU", "AE"],
   sameAs: [
     "https://github.com/i-shubham24",
     "https://github.com/nitin612",
@@ -102,7 +106,7 @@ const organizationJsonLd = {
   contactPoint: {
     "@type": "ContactPoint",
     contactType: "project enquiries",
-    email: site.email,
+    url: `${site.url}/#contact`,
     availableLanguage: "English",
   },
   hasOfferCatalog: {
@@ -125,21 +129,13 @@ const websiteJsonLd = {
   inLanguage: "en",
 };
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: faqs.map((f) => ({
-    "@type": "Question",
-    name: f.q,
-    acceptedAnswer: { "@type": "Answer", text: f.a },
-  })),
-};
-
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
       data-theme="light"
+      // Anchor links glide, but moving between pages jumps straight to the top.
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
       className={`${archivo.variable} ${geistMono.variable} antialiased`}
     >
@@ -158,12 +154,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             __html: JSON.stringify(websiteJsonLd).replace(/</g, "\\u003c"),
           }}
         />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c"),
-          }}
-        />
       </head>
       <body className="min-h-svh">
         <Providers>
@@ -172,6 +162,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {children}
           <Cursor />
         </Providers>
+        {/* Cookie-free page views. Only on Vercel, which serves the script
+            from this same origin, so the CSP needs no new source. */}
+        {process.env.VERCEL && <Analytics />}
         <div aria-hidden className="grain" />
       </body>
     </html>
