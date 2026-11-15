@@ -7,6 +7,8 @@ import { Preloader } from "@/components/preloader";
 import { Providers } from "@/components/providers";
 import { themeScript } from "@/components/theme-toggle";
 import { services } from "@/data/content";
+import { allProjects } from "@/data/projects";
+import { servicePackages } from "@/data/packages";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -93,30 +95,73 @@ const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
   name: site.name,
+  legalName: site.name,
   url: site.url,
   description: site.description,
   image: `${site.url}/opengraph-image`,
   logo: `${site.url}/apple-icon.png`,
-  address: { "@type": "PostalAddress", addressCountry: "IN" },
-  areaServed: ["IN", "CH", "AU", "AE"],
+  email: site.email,
+  foundingDate: "2024",
+  founders: [
+    {
+      "@type": "Person",
+      name: "Shubhampreet Singh",
+      jobTitle: "Co-Founder & Lead Frontend / AI",
+      sameAs: "https://www.linkedin.com/in/shubhampreet-singh-12584824a",
+    },
+    {
+      "@type": "Person",
+      name: "Nitin Kumar",
+      jobTitle: "Co-Founder & Lead Backend / Mobile",
+      sameAs: "https://github.com/nitin612",
+    },
+  ],
+  address: {
+    "@type": "PostalAddress",
+    addressLocality: "Amritsar",
+    addressRegion: "Punjab",
+    addressCountry: "IN",
+  },
+  areaServed: ["IN", "CH", "AU", "AE", "US", "GB"],
   sameAs: [
     "https://github.com/i-shubham24",
     "https://github.com/nitin612",
+    "https://www.linkedin.com/in/shubhampreet-singh-12584824a",
   ],
   contactPoint: {
     "@type": "ContactPoint",
     contactType: "project enquiries",
     url: `${site.url}/#contact`,
-    availableLanguage: "English",
+    email: site.email,
+    availableLanguage: ["English", "Hindi", "Punjabi"],
   },
   hasOfferCatalog: {
     "@type": "OfferCatalog",
-    name: "What Synex Labs builds",
-    itemListElement: services.map((s, i) => ({
-      "@type": "Offer",
-      position: i + 1,
-      itemOffered: { "@type": "Service", name: s.name, description: s.line },
-    })),
+    name: "Synex Labs Services and Packages",
+    itemListElement: [
+      ...services.map((s, i) => ({
+        "@type": "Offer",
+        position: i + 1,
+        itemOffered: { "@type": "Service", name: s.name, description: s.line },
+      })),
+      ...servicePackages.map((pkg, i) => ({
+        "@type": "Offer",
+        position: services.length + i + 1,
+        itemOffered: {
+          "@type": "Product",
+          name: pkg.name,
+          description: pkg.description,
+          sku: pkg.sku,
+          offers: {
+            "@type": "Offer",
+            price: pkg.price,
+            priceCurrency: pkg.currency,
+            availability: "https://schema.org/InStock",
+            url: pkg.url,
+          },
+        },
+      })),
+    ],
   },
 };
 
@@ -124,9 +169,15 @@ const websiteJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
   name: site.name,
+  alternateName: "SynexLabs",
   url: site.url,
   description: site.description,
   inLanguage: "en",
+  publisher: {
+    "@type": "Organization",
+    name: site.name,
+    url: site.url,
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -134,14 +185,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       data-theme="light"
-      // Anchor links glide, but moving between pages jumps straight to the top.
       data-scroll-behavior="smooth"
       suppressHydrationWarning
       className={`${archivo.variable} ${geistMono.variable} antialiased`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        {/* Structured data. `<` is escaped per Next.js JSON-LD guidance to block XSS. */}
+        {/* Structured data: `<` escaped to block HTML injection */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -156,14 +206,44 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         />
       </head>
       <body className="min-h-svh">
+        {/* Crawler-ready noscript fallback: ensures search bots without JS index all routes and content */}
+        <noscript>
+          <div style={{ padding: "2rem", background: "#f2efe8", color: "#11110f", fontFamily: "sans-serif" }}>
+            <h1>Synex Labs | Websites, online stores and web apps</h1>
+            <p>Synex Labs is a technical duo studio building custom websites, web apps, online stores, and AI tools for businesses across India, Switzerland, Australia, and the UAE.</p>
+            
+            <h2>Our Services</h2>
+            <ul>
+              {services.map((s) => (
+                <li key={s.name}>
+                  <strong>{s.name}</strong>: {s.line}
+                </li>
+              ))}
+            </ul>
+
+            <h2>Selected Client Work &amp; Case Studies</h2>
+            <ul>
+              {allProjects.map((p) => (
+                <li key={p.slug}>
+                  <a href={`/work/${p.slug}`}>
+                    <strong>{p.name}</strong> - {p.kind} ({p.sector}{p.place ? `, ${p.place}` : ""})
+                  </a>
+                  <p>{p.summary}</p>
+                </li>
+              ))}
+            </ul>
+
+            <h2>Contact Us</h2>
+            <p>Email: <a href={`mailto:${site.email}`}>{site.email}</a></p>
+          </div>
+        </noscript>
+
         <Providers>
           <Preloader />
           <Nav />
           {children}
           <Cursor />
         </Providers>
-        {/* Cookie-free page views. Only on Vercel, which serves the script
-            from this same origin, so the CSP needs no new source. */}
         {process.env.VERCEL && <Analytics />}
         <div aria-hidden className="grain" />
       </body>

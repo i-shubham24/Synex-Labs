@@ -25,10 +25,10 @@ const sites = [
   { slug: "dolancer", url: "https://dolancer.vercel.app" },
   { slug: "assignx", url: "https://assign-x-three.vercel.app" },
   { slug: "almuna", url: "https://book-site-theta.vercel.app/" },
-  { slug: "aurex-truck-parts", url: "https://aurextruckparts.com.au/" },
+  { slug: "aurex-truck-parts", url: "https://www.aurextruckparts.com.au/" },
   { slug: "optimal-cleaning", url: "https://optimal-cleaning-eta.vercel.app" },
   { slug: "eve-pizzeria", url: "https://eve-pizzeria.vercel.app" },
-  { slug: "humble-solutions", url: "http://portfolio.humblesolutions.in/" },
+  { slug: "humble-solutions", url: "https://portfolio.humblesolutions.in/" },
   { slug: "fieldofsoma", url: "https://fieldofsoma.vercel.app" },
   // Opens on a loader and a WebGL hero, so give it longer to settle.
   { slug: "bliss-wedding", url: "https://bliss-wedding.vercel.app", wait: 9000 },

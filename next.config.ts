@@ -2,14 +2,14 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV === "development";
 
-// Static marketing site: keep static rendering, set CSP via headers
-// (no nonce, per Next.js "Without Nonces" guidance).
+// Production Content Security Policy (OWASP 2025 standard)
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data:",
-  "font-src 'self'",
+  `script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com${isDev ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "connect-src 'self' https://va.vercel-scripts.com https://vitals.vercel-insights.com",
   "object-src 'none'",
   "frame-src 'none'",
   "base-uri 'self'",
@@ -26,7 +26,7 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
   { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
@@ -42,10 +42,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
-  // Never leak stack traces / internals via headers or sourcemaps.
+  // Never leak server framework identifiers or debug maps in production
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   images: {
@@ -59,22 +58,85 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        // Share images and icons are fetched by other sites (chat apps, social
-        // previews), so they may be loaded cross-origin.
+        // Social previews and PWA assets fetched cross-origin
         source: "/:path(opengraph-image|twitter-image|icon.svg|apple-icon.png|icon-512.png)",
         headers: [{ key: "Cross-Origin-Resource-Policy", value: "cross-origin" }],
       },
       {
-        // Site screenshots: cacheable but revalidatable, since `npm run shots`
-        // can overwrite them under the same names. Only the image files: the
-        // project pages under /work/<slug> must not be cached for a week.
+        // Immutable 30-day cache for static screenshots and icons
         source: "/work/:slug/:file(.+\\.webp)",
         headers: [
           {
             key: "Cache-Control",
-            value: "public, max-age=604800, stale-while-revalidate=86400",
+            value: "public, max-age=2592000, immutable",
           },
         ],
+      },
+      {
+        source: "/:file(.*\\.(?:png|svg|ico|webmanifest))",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=2592000, immutable",
+          },
+        ],
+      },
+    ];
+  },
+  async redirects() {
+    return [
+      {
+        source: "/security.txt",
+        destination: "/.well-known/security.txt",
+        permanent: true,
+      },
+      {
+        source: "/portfolio",
+        destination: "/#work",
+        permanent: true,
+      },
+      {
+        source: "/projects",
+        destination: "/#work",
+        permanent: true,
+      },
+      {
+        source: "/services",
+        destination: "/#services",
+        permanent: true,
+      },
+      {
+        source: "/contact",
+        destination: "/#contact",
+        permanent: true,
+      },
+      {
+        source: "/project/:slug",
+        destination: "/work/:slug",
+        permanent: true,
+      },
+      {
+        source: "/projects/:slug",
+        destination: "/work/:slug",
+        permanent: true,
+      },
+      {
+        source: "/portfolio/:slug",
+        destination: "/work/:slug",
+        permanent: true,
+      },
+      {
+        source: "/case-study/:slug",
+        destination: "/work/:slug",
+        permanent: true,
+      },
+    ];
+  },
+  async rewrites() {
+    return [
+      {
+        source: "/feeds/google-merchant.xml",
+        destination: "/google-merchant.xml",
       },
     ];
   },

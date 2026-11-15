@@ -52,13 +52,17 @@ export function Contact() {
     e.preventDefault();
     const form = e.currentTarget;
     const data = new FormData(form);
-    if (String(data.get("company") ?? "").trim() !== "") return; // honeypot
+    const hpCompany = String(data.get("company") ?? "").trim();
+    const hpWebsite = String(data.get("hp_website") ?? "").trim();
+    if (hpCompany !== "" || hpWebsite !== "") return; // honeypot
     const payload = {
       name: String(data.get("name") ?? ""),
       email: String(data.get("email") ?? ""),
       need,
       message: String(data.get("message") ?? ""),
       elapsed: Date.now() - shownAt.current,
+      company: hpCompany,
+      hp_website: hpWebsite,
     };
     const openMail = () => {
       const subject = `New project: ${need}`;
@@ -163,14 +167,22 @@ export function Contact() {
             className="flex flex-col gap-3"
             noValidate={false}
           >
-            {/* Honeypot: hidden from humans, catches bots. */}
+            {/* Honeypot fields: invisible to users, trap automated bot scripts. */}
             <input
               type="text"
               name="company"
               autoComplete="off"
               tabIndex={-1}
               aria-hidden="true"
-              className="absolute h-px w-px overflow-hidden opacity-0"
+              className="absolute h-px w-px overflow-hidden opacity-0 pointer-events-none"
+            />
+            <input
+              type="text"
+              name="hp_website"
+              autoComplete="off"
+              tabIndex={-1}
+              aria-hidden="true"
+              style={{ position: "absolute", left: "-9999px", display: "none" }}
             />
             <label className="sr-only" htmlFor="name">
               Your name

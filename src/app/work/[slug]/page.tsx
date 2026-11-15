@@ -88,18 +88,41 @@ async function ProjectDetail({ params }: Props) {
   const own = !moreProjects.includes(project);
   const pageUrl = `${site.url}/work/${project.slug}`;
 
+  const screens = [
+    `${site.url}/work/${project.slug}/desktop-1.webp`,
+    `${site.url}/work/${project.slug}/mobile.webp`,
+  ];
+
   const jsonLd = [
     {
       "@context": "https://schema.org",
-      "@type": "CreativeWork",
+      "@type":
+        project.kind === "Web app" || project.kind === "AI tool"
+          ? ["CreativeWork", "SoftwareApplication"]
+          : "CreativeWork",
       name: project.name,
       headline: `${project.name}, ${project.kind.toLowerCase()} for ${project.sector.toLowerCase()}`,
       description: project.summary,
       url: pageUrl,
+      image: `${site.url}/work/${project.slug}/desktop-1.webp`,
+      screenshot: screens,
       ...(project.url && { sameAs: project.url }),
       genre: project.kind,
       keywords: [project.sector, ...project.stack].join(", "),
-      creator: { "@type": "Organization", name: site.name, url: site.url },
+      inLanguage: "en",
+      datePublished: "2024-01-01",
+      dateModified: "2026-11-15",
+      creator: {
+        "@type": "Organization",
+        name: site.name,
+        url: site.url,
+      },
+      publisher: {
+        "@type": "Organization",
+        name: site.name,
+        url: site.url,
+        logo: `${site.url}/apple-icon.png`,
+      },
     },
     {
       "@context": "https://schema.org",

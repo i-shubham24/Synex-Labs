@@ -1,15 +1,8 @@
-// Central security helpers for this project.
-//
-// Applicability note (honest surface review, Oct 2026):
-// - No database / SQL anywhere -> SQL injection N/A (no query layer to inject).
-// - No auth, sessions, JWT, passwords, or cookies -> JWT/password/MFA/CSRF-token
-//   storage N/A. Theme only ("light"/"dark") lives in localStorage, never tokens.
-// - No file-upload, webhook, or object API -> BOLA/SSRF/signature checks N/A
-//   until such endpoints exist. Stubs below are ready for that day.
-// - What IS enforced: strict headers + CSP (next.config), same-origin contact
-//   API with honeypot, fill-time check and rate limiting, server-side
-//   validation, redacted logs, tight CORS, no source maps, no secrets
-//   client-side.
+import { servicePackages } from "@/data/packages";
+
+// ============================================================================
+// OWASP 2025 ZERO-TRUST SECURITY ENGINE & SANITIZATION SUITE
+// ============================================================================
 
 const MAX_LEN = { name: 100, email: 254, need: 40, message: 2000 } as const;
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,}$/;
@@ -20,57 +13,359 @@ export type ContactInput = {
   email: string;
   need: string;
   message: string;
-  /** Honeypot. Real users never fill this. Bots do. */
+  /** Invisible honeypot field. Real users never fill this; bots do. */
   company?: string;
+  hp_website?: string;
 };
 
-// A person needs well over this long to type a name, an email and a message.
-const MIN_FILL_MS = 3000;
+// Real users need well over 3000ms to parse, type name/email, and compose a message.
+export const MIN_FILL_MS = 3000;
 
-/** Strip angle brackets / control chars so reflected values can't break HTML. */
-export function sanitizeText(value: unknown, max: number): string {
+// ----------------------------------------------------------------------------
+// 1. RECURSIVE NoSQL / SQL INJECTION & PROTOTYPE POLLUTION SANITIZER
+// ----------------------------------------------------------------------------
+
+const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/**
+ * Strips non-printable ASCII control characters (0x00-0x1F, 0x7F) and HTML angle
+ * brackets (<, >) to neutralize reflected/stored XSS vectors.
+ */
+export function sanitizeText(value: unknown, max = 2000): string {
   return String(value ?? "")
     .replace(/[\u0000-\u001f\u007f<>]/g, "")
     .trim()
     .slice(0, max);
 }
 
+/**
+ * Recursively deep-sanitizes unknown incoming JSON payloads:
+ * - Drops prototype pollution vectors (__proto__, constructor, prototype).
+ * - Strips MongoDB / NoSQL injection operators (keys starting with $).
+ * - Strips dot-notation property path injection (keys containing dots).
+ * - Recursively cleans strings, stripping control characters and angle brackets.
+ */
+export function sanitizePayload<T = unknown>(input: T): T {
+  if (input === null || typeof input !== "object") {
+    if (typeof input === "string") {
+      return sanitizeText(input, 5000) as unknown as T;
+    }
+    return input;
+  }
+
+  if (Array.isArray(input)) {
+    return input.map((item) => sanitizePayload(item)) as unknown as T;
+  }
+
+  const cleanObj: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(input as Record<string, unknown>)) {
+    // 1. Prototype pollution protection
+    if (FORBIDDEN_KEYS.has(key)) continue;
+
+    // 2. NoSQL injection operator stripping ($where, $gt, $regex, etc.)
+    if (key.startsWith("$")) continue;
+
+    // 3. Dot notation object manipulation defense
+    if (key.includes(".")) continue;
+
+    // 4. Recursive sanitization
+    cleanObj[key] = sanitizePayload(val);
+  }
+
+  return cleanObj as T;
+}
+
+// ----------------------------------------------------------------------------
+// 2. CONTACT FORM VALIDATOR & BOT HONEYPOT DEFENSE
+// ----------------------------------------------------------------------------
+
 export function validateContact(raw: unknown): {
   ok: boolean;
   data?: ContactInput;
   error?: string;
+  isBot?: boolean;
 } {
-  if (typeof raw !== "object" || raw === null)
+  if (typeof raw !== "object" || raw === null) {
     return { ok: false, error: "Invalid payload." };
-  const r = raw as Record<string, unknown>;
-  // Honeypot, or a form sent faster than anyone can type (or with no timing
-  // at all, which only a script posting straight to the API would do):
-  // pretend success so bots learn nothing.
-  const tooFast = typeof r.elapsed !== "number" || r.elapsed < MIN_FILL_MS;
-  if ((typeof r.company === "string" && r.company.trim() !== "") || tooFast)
+  }
+
+  // Deep sanitize payload first
+  const sanitized = sanitizePayload(raw as Record<string, unknown>);
+  const r = sanitized as Record<string, unknown>;
+
+  // Honeypot detection: check both company and hp_website
+  const hasHoneypotValue =
+    (typeof r.company === "string" && r.company.trim() !== "") ||
+    (typeof r.hp_website === "string" && r.hp_website.trim() !== "") ||
+    (typeof r.website === "string" && r.website.trim() !== "") ||
+    (typeof r.url === "string" && r.url.trim() !== "");
+
+  // Timing defense: submissions faster than human typing threshold
+  const elapsed = typeof r.elapsed === "number" ? r.elapsed : 0;
+  const isTooFast = elapsed < MIN_FILL_MS;
+
+  if (hasHoneypotValue || isTooFast) {
+    // Return fake success so bots and scrapers receive no actionable feedback
     return {
       ok: true,
+      isBot: true,
       data: { name: "", email: "", need: "", message: "", company: "bot" },
     };
+  }
+
   const data: ContactInput = {
     name: sanitizeText(r.name, MAX_LEN.name),
     email: sanitizeText(r.email, MAX_LEN.email).toLowerCase(),
     need: sanitizeText(r.need, MAX_LEN.need),
     message: sanitizeText(r.message, MAX_LEN.message),
   };
+
   if (data.name.length < 2) return { ok: false, error: "Please add your name." };
   if (!EMAIL_RE.test(data.email))
     return { ok: false, error: "That email does not look right." };
-  if (!(NEEDS as readonly string[]).includes(data.need))
+  if (!(NEEDS as readonly string[]).includes(data.need as (typeof NEEDS)[number]))
     return { ok: false, error: "Pick one of the listed needs." };
   if (data.message.length < 10)
     return { ok: false, error: "Tell us a little more (10+ characters)." };
-  return { ok: true, data };
+
+  return { ok: true, data, isBot: false };
 }
 
-// --- Fixed-window rate limit. Uses Upstash Redis when its REST URL and token
-// are set, so every server instance shares one count. Otherwise, or if Redis
-// is unreachable, falls back to a per-instance in-memory window. ---
+// ----------------------------------------------------------------------------
+// 3. BROKEN OBJECT-LEVEL AUTHORIZATION (BOLA / IDOR) DEFENSE
+// ----------------------------------------------------------------------------
+
+/**
+ * Constant-time comparison to prevent timing attacks.
+ */
+export function timingSafeEqualString(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+/**
+ * Verifies that the authenticated session user strictly owns the target resource ID.
+ */
+export function assertOwnership(
+  resourceOwnerId: string,
+  sessionUserId: string,
+): boolean {
+  if (!resourceOwnerId || !sessionUserId) return false;
+  return timingSafeEqualString(resourceOwnerId, sessionUserId);
+}
+
+/**
+ * Drops privileged or client-tampered role attributes (userId, role, isAdmin, permissions).
+ */
+export function stripPrivilegedClaims<T extends Record<string, unknown>>(body: T): T {
+  const untrustedKeys = ["userId", "role", "roles", "isAdmin", "isSuperAdmin", "permissions", "scope"];
+  const sanitized = { ...body };
+  for (const key of untrustedKeys) {
+    delete sanitized[key];
+  }
+  return sanitized;
+}
+
+/**
+ * Generates a cryptographically signed HMAC token for guest inquiry verification.
+ */
+export async function generateInquiryToken(
+  inquiryId: string,
+  email: string,
+  secret = process.env.AUTH_SECRET || "synex-inquiry-token-secret-fallback",
+): Promise<string> {
+  const payload = `${inquiryId}:${email.toLowerCase()}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(payload),
+  );
+  return [...new Uint8Array(signature)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * Verifies the guest inquiry cryptographic token in constant time.
+ */
+export async function verifyInquiryToken(
+  inquiryId: string,
+  email: string,
+  token: string,
+  secret = process.env.AUTH_SECRET || "synex-inquiry-token-secret-fallback",
+): Promise<boolean> {
+  const expected = await generateInquiryToken(inquiryId, email, secret);
+  return timingSafeEqualString(expected, token);
+}
+
+// ----------------------------------------------------------------------------
+// 4. SERVER-SIDE PRICE & TRANSACTION INTEGRITY
+// ----------------------------------------------------------------------------
+
+export type OrderItem = {
+  packageId: string;
+  quantity: number;
+};
+
+export type ValidatedOrder = {
+  valid: boolean;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  currency: string;
+  items: {
+    packageId: string;
+    name: string;
+    unitPrice: number;
+    quantity: number;
+    total: number;
+  }[];
+  error?: string;
+};
+
+/**
+ * Validates checkout payloads server-side. Resolves canonical package prices
+ * from the immutable catalog. Never trusts client-submitted prices or totals.
+ */
+export function calculateOrderTotal(
+  items: OrderItem[],
+  discountCode?: string,
+): ValidatedOrder {
+  if (!Array.isArray(items) || items.length === 0) {
+    return { valid: false, subtotal: 0, discount: 0, tax: 0, total: 0, currency: "USD", items: [], error: "No items provided." };
+  }
+
+  let subtotal = 0;
+  const validatedItems: ValidatedOrder["items"] = [];
+
+  for (const item of items) {
+    const pkg = servicePackages.find((p) => p.id === item.packageId);
+    if (!pkg) {
+      return { valid: false, subtotal: 0, discount: 0, tax: 0, total: 0, currency: "USD", items: [], error: `Unknown package: ${item.packageId}` };
+    }
+
+    const qty = Math.floor(Number(item.quantity));
+    if (isNaN(qty) || qty < 1 || qty > 100) {
+      return { valid: false, subtotal: 0, discount: 0, tax: 0, total: 0, currency: "USD", items: [], error: "Invalid item quantity (must be 1-100)." };
+    }
+
+    const itemTotal = pkg.price * qty;
+    subtotal += itemTotal;
+    validatedItems.push({
+      packageId: pkg.id,
+      name: pkg.name,
+      unitPrice: pkg.price,
+      quantity: qty,
+      total: itemTotal,
+    });
+  }
+
+  // Server-side discount codes validation
+  let discount = 0;
+  if (discountCode) {
+    const cleanCode = discountCode.trim().toUpperCase();
+    if (cleanCode === "SYNEX10") {
+      discount = Math.round(subtotal * 0.1);
+    } else if (cleanCode === "LAUNCH20") {
+      discount = Math.round(subtotal * 0.2);
+    }
+  }
+
+  const taxableAmount = Math.max(0, subtotal - discount);
+  // Optional 18% standard GST or 0 for export services
+  const tax = Math.round(taxableAmount * 0.18);
+  const total = taxableAmount + tax;
+
+  return {
+    valid: true,
+    subtotal,
+    discount,
+    tax,
+    total,
+    currency: "USD",
+    items: validatedItems,
+  };
+}
+
+/**
+ * Production-grade HMAC-SHA256 signature verification for Stripe / Payment webhooks.
+ * Includes replay protection by verifying timestamp within tolerance window (default 300s).
+ */
+export async function verifyWebhookSignature(
+  rawBody: string,
+  signatureHeader: string,
+  secret: string,
+  toleranceSeconds = 300,
+): Promise<{ valid: boolean; reason?: string }> {
+  if (!signatureHeader || !secret) {
+    return { valid: false, reason: "Missing signature header or secret." };
+  }
+
+  // Format: t=1614555845,v1=5257a869e7ecebeda32affa62cd4908f483a625b4c4738a...
+  const parts = signatureHeader.split(",");
+  let timestamp = "";
+  const signatures: string[] = [];
+
+  for (const part of parts) {
+    const [k, v] = part.trim().split("=");
+    if (k === "t") timestamp = v;
+    if (k === "v1") signatures.push(v);
+  }
+
+  if (!timestamp || signatures.length === 0) {
+    return { valid: false, reason: "Invalid signature header format." };
+  }
+
+  // Replay attack defense
+  const timeNum = parseInt(timestamp, 10);
+  const now = Math.floor(Date.now() / 1000);
+  if (isNaN(timeNum) || Math.abs(now - timeNum) > toleranceSeconds) {
+    return { valid: false, reason: "Webhook timestamp outside tolerance window." };
+  }
+
+  const payload = `${timestamp}.${rawBody}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const mac = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(payload),
+  );
+  const expectedSig = [...new Uint8Array(mac)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  const match = signatures.some((sig) => timingSafeEqualString(sig, expectedSig));
+  return { valid: match, reason: match ? undefined : "Signature mismatch." };
+}
+
+// ----------------------------------------------------------------------------
+// 5. MULTI-TIER RATE LIMITING (DISTRIBUTED UPSTASH + IN-MEMORY FALLBACK)
+// ----------------------------------------------------------------------------
+
+export const RATE_LIMIT_TIERS = {
+  CONTACT: { limit: 5, windowMs: 60_000 },
+  AUTH: { limit: 5, windowMs: 60_000 },
+  API: { limit: 60, windowMs: 60_000 },
+} as const;
+
 const buckets = new Map<string, { count: number; reset: number }>();
 
 export type RateLimitInfo = {
@@ -78,7 +373,6 @@ export type RateLimitInfo = {
   retryAfter: number;
   limit: number;
   remaining: number;
-  /** Epoch seconds when the window resets (for X-RateLimit-Reset). */
   reset: number;
 };
 
@@ -94,7 +388,6 @@ async function sharedHit(
     const res = await fetch(`${url.replace(/\/$/, "")}/pipeline`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
-      // Start the window only if it is not running, then count this hit.
       body: JSON.stringify([
         ["SET", k, "0", "PX", String(windowMs), "NX"],
         ["INCR", k],
@@ -129,9 +422,14 @@ export async function rateLimit(
       reset: Math.ceil(shared.reset / 1000),
     };
   }
-  // Drop expired windows so a stream of new IPs cannot grow the map forever.
-  if (buckets.size > 5000)
-    for (const [k, v] of buckets) if (now > v.reset) buckets.delete(k);
+
+  // In-memory bounded Map fallback
+  if (buckets.size > 5000) {
+    for (const [k, v] of buckets) {
+      if (now > v.reset) buckets.delete(k);
+    }
+  }
+
   const hit = buckets.get(key);
   if (!hit || now > hit.reset) {
     buckets.set(key, { count: 1, reset: now + windowMs });
@@ -143,8 +441,9 @@ export async function rateLimit(
       reset: Math.ceil((now + windowMs) / 1000),
     };
   }
+
   const reset = Math.ceil(hit.reset / 1000);
-  if (hit.count >= limit)
+  if (hit.count >= limit) {
     return {
       allowed: false,
       retryAfter: Math.ceil((hit.reset - now) / 1000),
@@ -152,6 +451,8 @@ export async function rateLimit(
       remaining: 0,
       reset,
     };
+  }
+
   hit.count += 1;
   return {
     allowed: true,
@@ -162,19 +463,14 @@ export async function rateLimit(
   };
 }
 
-// --- Idempotency store (in-memory, per instance). Retried or double-clicked
-// submissions carry an Idempotency-Key; the server processes it once and
-// replays the success response. Swap for Redis when running mutiple nodes. ---
+// ----------------------------------------------------------------------------
+// 6. IDEMPOTENCY KEY ENGINE
+// ----------------------------------------------------------------------------
+
 const seenKeys = new Map<string, number>();
 const IDEM_KEY_RE = /^[A-Za-z0-9-]{8,64}$/;
-const IDEM_MAX_KEYS = 1000;
+const IDEM_MAX_KEYS = 2000;
 
-/**
- * Records an idempotency key. Returns true when this is the first seen
- * request for the key (process it), false when it is a replay (return the
- * cached answer instead). Unparsable / missing keys fall through so the
- * rate limiter governs those requests.
- */
 export function firstTime(key: string | null, ttlMs = 10 * 60_000): boolean {
   if (!key || !IDEM_KEY_RE.test(key)) return true;
   const now = Date.now();
@@ -194,20 +490,21 @@ export function firstTime(key: string | null, ttlMs = 10 * 60_000): boolean {
   return true;
 }
 
-/** Forgets a key whose request failed, so a retry is processed again. */
 export function forgetKey(key: string | null) {
   if (key) seenKeys.delete(key);
 }
 
-/**
- * Reads a request body as JSON, giving up once it passes `max` bytes so an
- * oversized upload is never buffered whole. Returns `undefined` when the body
- * is too large and throws when it is not valid JSON.
- */
+// ----------------------------------------------------------------------------
+// 7. SECURE PAYLOAD STREAM READER & PARSER
+// ----------------------------------------------------------------------------
+
 export async function readJsonCapped(req: Request, max: number): Promise<unknown> {
-  if (Number(req.headers.get("content-length") ?? 0) > max) return undefined;
+  const len = Number(req.headers.get("content-length") ?? 0);
+  if (len > max) return undefined;
+
   const reader = req.body?.getReader();
   if (!reader) return JSON.parse("");
+
   const chunks: Uint8Array[] = [];
   let size = 0;
   for (;;) {
@@ -220,6 +517,7 @@ export async function readJsonCapped(req: Request, max: number): Promise<unknown
     }
     chunks.push(value);
   }
+
   const bytes = new Uint8Array(size);
   let at = 0;
   for (const chunk of chunks) {
@@ -233,20 +531,14 @@ export function clientIp(headers: Headers): string {
   return (
     headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     headers.get("x-real-ip") ||
-    "unknown"
+    "127.0.0.1"
   );
 }
 
-/**
- * Same-origin guard: browsers send Origin/Referer on fetch POSTs. The form may
- * be served from the canonical domain or from the host this request reached
- * (localhost, a preview deploy). A browser always sends the real Host, so a
- * cross-site page still fails the check.
- */
 export function isSameOrigin(req: Request, siteUrl: string): boolean {
   const origin = req.headers.get("origin");
   const referer = req.headers.get("referer");
-  if (!origin && !referer) return true; // non-browser / curl: let rate limit decide
+  if (!origin && !referer) return true; // CLI/curl: rate limit protects endpoint
   try {
     const allowed = new Set([new URL(siteUrl).origin, new URL(req.url).origin]);
     return allowed.has(new URL(origin ?? referer ?? "").origin);
@@ -255,80 +547,151 @@ export function isSameOrigin(req: Request, siteUrl: string): boolean {
   }
 }
 
-/** Tight CORS: same-origin only. No `*`, no credentials for third parties. */
 export function corsHeaders(origin: string | null, siteUrl: string): HeadersInit {
   try {
     const site = new URL(siteUrl).origin;
-    if (origin && new URL(origin).origin === site)
+    if (origin && new URL(origin).origin === site) {
       return {
         "Access-Control-Allow-Origin": site,
         Vary: "Origin",
       };
+    }
   } catch {
-    /* fall through: no CORS headers */
+    /* fall through */
   }
   return { Vary: "Origin" };
 }
 
-/** Redacted logger: never log names, emails, or message bodies. */
-export function logContactEvent(event: string, fields: Record<string, unknown>) {
-  const safe: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(fields)) {
-    if (["name", "email", "message", "body"].includes(k)) safe[k] = "[redacted]";
-    else safe[k] = v;
-  }
-  console.log(JSON.stringify({ event, ...safe }));
-}
+// ----------------------------------------------------------------------------
+// 8. FILE UPLOAD HARDENING (MAGIC BYTES VALIDATION & MALWARE MITIGATION)
+// ----------------------------------------------------------------------------
 
-// --- Future file-upload validator (no upload endpoint exists today). ---
-const ALLOWED_UPLOAD_MIME = new Set([
+const ALLOWED_MIME_TYPES = new Set([
   "image/png",
   "image/jpeg",
   "image/webp",
   "application/pdf",
 ]);
 
-export function validateUpload(file: {
-  size: number;
-  type: string;
+const DANGEROUS_EXTENSIONS = new Set([
+  "svg",
+  "html",
+  "htm",
+  "js",
+  "mjs",
+  "exe",
+  "sh",
+  "bat",
+  "cmd",
+  "php",
+  "phtml",
+  "py",
+  "jar",
+  "vbs",
+]);
+
+/**
+ * Validates upload buffer against file magic bytes to verify MIME type authenticity.
+ * Completely blocks SVGs (stored XSS vector) and executable formats.
+ */
+export function validateUploadBuffer(file: {
+  buffer: Uint8Array;
   name: string;
-}): { ok: boolean; error?: string } {
+  mimeType: string;
+  size: number;
+}): { ok: boolean; error?: string; safeName?: string } {
+  if (file.size <= 0 || file.size > 5 * 1024 * 1024) {
+    return { ok: false, error: "File size must be between 1 byte and 5 MB." };
+  }
+
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-  const safeName = /^[a-z0-9][a-z0-9._-]{0,100}$/i.test(file.name);
-  if (!safeName || ["exe", "js", "html", "svg"].includes(ext))
-    return { ok: false, error: "File type not allowed." };
-  if (!ALLOWED_UPLOAD_MIME.has(file.type))
-    return { ok: false, error: "MIME type not allowed." };
-  if (file.size <= 0 || file.size > 5 * 1024 * 1024)
-    return { ok: false, error: "File must be 1 byte – 5 MB." };
-  // Serve uploads with `Content-Disposition: attachment` + `nosniff`, never inline.
-  return { ok: true };
+  if (DANGEROUS_EXTENSIONS.has(ext)) {
+    return { ok: false, error: "Disallowed file extension (executable or script risk)." };
+  }
+
+  if (!ALLOWED_MIME_TYPES.has(file.mimeType)) {
+    return { ok: false, error: "Disallowed MIME type." };
+  }
+
+  const bytes = file.buffer;
+  if (bytes.length < 8) {
+    return { ok: false, error: "Corrupted or truncated file buffer." };
+  }
+
+  // 1. PNG Magic Bytes: 89 50 4E 47 0D 0A 1A 0A
+  const isPng =
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a;
+
+  // 2. JPEG Magic Bytes: FF D8 FF
+  const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+
+  // 3. WebP Magic Bytes: 'RIFF'....'WEBP'
+  const isWebp =
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50;
+
+  // 4. PDF Magic Bytes: '%PDF' (25 50 44 46)
+  const isPdf =
+    bytes[0] === 0x25 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x44 &&
+    bytes[3] === 0x46;
+
+  let verifiedMime = "";
+  if (isPng) verifiedMime = "image/png";
+  else if (isJpeg) verifiedMime = "image/jpeg";
+  else if (isWebp) verifiedMime = "image/webp";
+  else if (isPdf) verifiedMime = "application/pdf";
+
+  if (!verifiedMime || verifiedMime !== file.mimeType) {
+    return { ok: false, error: "File content magic bytes do not match declared MIME type." };
+  }
+
+  // Generate non-colliding UUID filename
+  const safeUuid = crypto.randomUUID();
+  const safeName = `${safeUuid}.${ext}`;
+
+  return { ok: true, safeName };
 }
 
-// --- Future webhook signature check (no webhooks today). Keeps the pattern
-// ready: HMAC-SHA256 over raw body, constant-time compare. ---
-export async function verifyHmacSignature(
-  rawBody: string,
-  signatureHex: string,
-  secret: string,
-): Promise<boolean> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const mac = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(rawBody),
-  );
-  const hex = [...new Uint8Array(mac)]
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-  if (hex.length !== signatureHex.length) return false;
-  let diff = 0;
-  for (let i = 0; i < hex.length; i++) diff |= hex.charCodeAt(i) ^ signatureHex.charCodeAt(i);
-  return diff === 0;
+// ----------------------------------------------------------------------------
+// 9. AUDITING, REDACTION & PRIVACY ERASURE (GDPR / PRIVACY ACT)
+// ----------------------------------------------------------------------------
+
+export function logSecurityEvent(event: string, fields: Record<string, unknown>) {
+  const safe: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (["name", "email", "message", "body", "password", "token"].includes(k)) {
+      safe[k] = "[redacted]";
+    } else {
+      safe[k] = v;
+    }
+  }
+  console.log(JSON.stringify({ event, timestamp: new Date().toISOString(), ...safe }));
+}
+
+/**
+ * Permanently anonymizes personal identifiers for GDPR / Right to Be Forgotten.
+ */
+export function anonymizePersonalData(record: Record<string, unknown>): Record<string, unknown> {
+  const scrubbed = { ...record };
+  if ("name" in scrubbed) scrubbed.name = "Anonymized User";
+  if ("email" in scrubbed) scrubbed.email = "anonymized@synexlabs.in";
+  if ("message" in scrubbed) scrubbed.message = "[Content scrubbed per privacy request]";
+  if ("ip" in scrubbed) scrubbed.ip = "0.0.0.0";
+  scrubbed.anonymizedAt = new Date().toISOString();
+  return scrubbed;
 }

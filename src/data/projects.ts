@@ -79,7 +79,7 @@ export const projects: Project[] = [
       "Admin dashboard and API",
     ],
     stack: ["React", "Vite", "Tailwind CSS", "Node.js"],
-    url: "https://aurextruckparts.com.au/",
+    url: "https://www.aurextruckparts.com.au/",
     featured: true,
   },
   {

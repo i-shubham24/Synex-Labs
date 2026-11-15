@@ -6,10 +6,11 @@ import {
   firstTime,
   forgetKey,
   isSameOrigin,
-  logContactEvent,
+  logSecurityEvent,
   rateLimit,
   readJsonCapped,
   validateContact,
+  RATE_LIMIT_TIERS,
   type RateLimitInfo,
 } from "@/lib/security";
 import { site } from "@/lib/site";
@@ -32,8 +33,9 @@ export async function OPTIONS(req: Request) {
   const res = new NextResponse(null, { status: 204 });
   for (const [k, v] of Object.entries(
     corsHeaders(req.headers.get("origin"), site.url),
-  ))
+  )) {
     res.headers.set(k, v as string);
+  }
   res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.headers.set("Access-Control-Allow-Headers", "Content-Type, Idempotency-Key");
   res.headers.set("Access-Control-Max-Age", "600");
@@ -45,7 +47,7 @@ export async function POST(req: Request) {
 
   // CSRF: only accept same-origin form posts.
   if (!isSameOrigin(req, site.url)) {
-    logContactEvent("contact.forbidden", { reason: "origin" });
+    logSecurityEvent("contact.forbidden", { reason: "origin" });
     return noStore(
       NextResponse.json({ ok: false, error: "Forbidden." }, { status: 403, headers: cors }),
     );
@@ -53,7 +55,7 @@ export async function POST(req: Request) {
 
   // Rate limit: 5 briefs / minute / IP.
   const ip = clientIp(req.headers);
-  const rl = await rateLimit(`contact:${ip}`, 5, 60_000);
+  const rl = await rateLimit(`contact:${ip}`, RATE_LIMIT_TIERS.CONTACT.limit, RATE_LIMIT_TIERS.CONTACT.windowMs);
   const headers = { ...cors, ...rateHeaders(rl) } as Record<string, string>;
   if (!rl.allowed) {
     const res = NextResponse.json(
@@ -73,25 +75,29 @@ export async function POST(req: Request) {
       NextResponse.json({ ok: false, error: "Invalid payload." }, { status: 400, headers }),
     );
   }
-  if (body === undefined)
+  if (body === undefined) {
     return noStore(
       NextResponse.json({ ok: false, error: "Message too long." }, { status: 413, headers }),
     );
+  }
 
   const checked = validateContact(body);
-  if (!checked.ok)
+  if (!checked.ok) {
     return noStore(
       NextResponse.json({ ok: false, error: checked.error }, { status: 400, headers }),
     );
-  if (checked.data?.company === "bot") {
-    // Honeypot hit: pretend it worked.
-    return noStore(NextResponse.json({ ok: true }, { headers }));
+  }
+
+  // Bot Honeypot defense: pretend it worked so scrapers/bots receive no feedback
+  if (checked.isBot || checked.data?.company === "bot") {
+    logSecurityEvent("contact.bot_dropped", { ip });
+    return noStore(NextResponse.json({ ok: true, message: "Brief received. We reply within a day." }, { headers }));
   }
 
   // Idempotency: a retried / double-clicked submit replays the first answer.
   const idemKey = req.headers.get("idempotency-key");
   if (!firstTime(idemKey)) {
-    logContactEvent("contact.replay", { need: checked.data?.need });
+    logSecurityEvent("contact.replay", { need: checked.data?.need });
     return noStore(
       NextResponse.json(
         { ok: true, message: "Brief already received. We reply within a day." },
@@ -101,7 +107,7 @@ export async function POST(req: Request) {
   }
 
   const delivery = await sendBrief(checked.data!);
-  logContactEvent(`contact.${delivery}`, { need: checked.data?.need });
+  logSecurityEvent(`contact.${delivery}`, { need: checked.data?.need });
   if (delivery !== "sent") {
     // Nothing reached the inbox. Let a retry through, and have the browser
     // hand the brief to the visitor's own mail app so it is not lost.
