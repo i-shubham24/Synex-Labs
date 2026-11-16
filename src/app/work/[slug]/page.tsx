@@ -13,10 +13,6 @@ import { site } from "@/lib/site";
 
 type Props = { params: Promise<{ slug: string }> };
 
-// The whole page is static. An unknown slug waits for its real render (a
-// 404) instead of being served the generic shell with a 200 first.
-export const ensureStatic = "navigation";
-
 // Every project gets a page at build time. Unknown slugs 404 in the page.
 export function generateStaticParams() {
   return allProjects.map((project) => ({ slug: project.slug }));

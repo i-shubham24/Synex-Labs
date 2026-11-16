@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { servicePackages } from "@/data/packages";
 import { site } from "@/lib/site";
 
+export const dynamic = "force-static";
+
 function escapeXml(unsafe: string): string {
   return unsafe
     .replace(/&/g, "&amp;")

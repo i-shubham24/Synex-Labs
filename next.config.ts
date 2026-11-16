@@ -42,14 +42,12 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  cacheComponents: true,
-  partialPrefetching: true,
+  output: "export",
   // Never leak server framework identifiers or debug maps in production
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   images: {
-    formats: ["image/avif", "image/webp"],
-    remotePatterns: [],
+    unoptimized: true,
   },
   async headers() {
     return [

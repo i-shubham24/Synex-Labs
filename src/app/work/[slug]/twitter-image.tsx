@@ -1,6 +1,8 @@
 import { allProjects } from "@/data/projects";
 import { projectCard } from "./card";
 
+export const dynamic = "force-static";
+
 export const alt = "A Synex Labs project";
 export const size = { width: 1200, height: 600 };
 export const contentType = "image/png";
