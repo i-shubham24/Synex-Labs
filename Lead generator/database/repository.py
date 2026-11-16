@@ -4,6 +4,15 @@ from datetime import datetime
 from .db import get_connection
 
 
+def lead_priority(country: str, first_website: bool, confidence: float = 0.0, old_website: bool = False) -> int:
+    """Higher = shown and sent first: no website (+30) > old site upgrade (+15), India +20 on top."""
+    from config.settings import settings
+
+    india = "india" in (country or "").lower() and settings.PRIORITY_COUNTRY_CODE == "91"
+    return ((20 if india else 0) + (30 if first_website else 15 if old_website else 0)
+            + int(round((confidence or 0) * 5)))
+
+
 class LeadRepository:
     """Handles all database operations for lead deduplication, storage, and status tracking."""
 
@@ -82,8 +91,11 @@ class LeadRepository:
         draft_icebreaker: str,
         ai_reasoning: str = "",
         confidence_score: float = 0.0,
+        country: str = "Unknown",
+        first_website: bool = False,
+        old_website: bool = False,
     ):
-        """Updates a post with Gemini AI parsing results."""
+        """Updates a post with Gemini AI parsing results (plus country / first-website priority)."""
         query = """
         UPDATE leads
         SET
@@ -95,6 +107,10 @@ class LeadRepository:
             ai_reasoning = ?,
             confidence_score = ?,
             processed_at = ?,
+            country = ?,
+            first_website = ?,
+            old_website = ?,
+            priority = ?,
             status = CASE WHEN ? = 1 THEN 'new' ELSE 'disqualified' END
         WHERE id = ?;
         """
@@ -111,6 +127,10 @@ class LeadRepository:
                     ai_reasoning,
                     confidence_score,
                     now,
+                    country,
+                    1 if first_website else 0,
+                    1 if old_website else 0,
+                    lead_priority(country, first_website, confidence_score, old_website),
                     is_valid_int,
                     lead_id,
                 ),
@@ -124,12 +144,27 @@ class LeadRepository:
         SELECT *
         FROM leads
         WHERE is_valid_lead = 1 AND status = ?
-        ORDER BY id DESC
+        ORDER BY priority DESC, id DESC
         LIMIT ?;
         """
         with get_connection() as conn:
             cursor = conn.execute(query, (status, limit))
             return [dict(row) for row in cursor.fetchall()]
+
+    @staticmethod
+    def get_recent_qualified(limit: int = 50) -> List[Dict[str, Any]]:
+        """Most recent qualified leads in any status (for the dashboard)."""
+        query = """
+        SELECT id, platform, source_channel, author, title, url, project_category,
+               budget_indicator, draft_icebreaker, confidence_score, status, scraped_at, contacted_at,
+               reply_email, notes, content, country, first_website, old_website, priority
+        FROM leads
+        WHERE is_valid_lead = 1
+        ORDER BY priority DESC, id DESC
+        LIMIT ?;
+        """
+        with get_connection() as conn:
+            return [dict(row) for row in conn.execute(query, (limit,)).fetchall()]
 
     @staticmethod
     def mark_as_alerted(lead_id: int):
@@ -139,6 +174,58 @@ class LeadRepository:
         with get_connection() as conn:
             conn.execute(query, (now, lead_id))
             conn.commit()
+
+    @staticmethod
+    def set_status(lead_id: int, status: str):
+        """Moves a social / website lead through the pipeline."""
+        from .stages import LEAD_STAGES, CLOSED
+
+        if status not in LEAD_STAGES:
+            raise ValueError(f"Unknown lead status: {status}")
+        if status == "contacted":
+            return LeadRepository.mark_as_contacted(lead_id)
+        now = datetime.utcnow().isoformat()
+        with get_connection() as conn:
+            if status in CLOSED:
+                conn.execute("UPDATE leads SET status = ?, outcome_at = ? WHERE id = ?;", (status, now, lead_id))
+            else:
+                conn.execute("UPDATE leads SET status = ? WHERE id = ?;", (status, lead_id))
+            conn.commit()
+
+    @staticmethod
+    def get(lead_id: int) -> Optional[Dict[str, Any]]:
+        with get_connection() as conn:
+            row = conn.execute("SELECT * FROM leads WHERE id = ?;", (lead_id,)).fetchone()
+            return dict(row) if row else None
+
+    @staticmethod
+    def save_website_brief(
+        message_id: str, name: str, need: str, body: str, reply_email: str, draft_reply: str,
+        country: str = "Unknown", first_website: bool = False, old_website: bool = False,
+    ) -> Optional[int]:
+        """Stores a contact-form brief from synexlabs.in as a qualified lead (inbound = top priority)."""
+        query = """
+        INSERT INTO leads (
+            platform, post_id, author, title, content, url, source_channel,
+            is_processed, is_valid_lead, project_category, budget_indicator,
+            draft_icebreaker, ai_reasoning, confidence_score, processed_at, status, reply_email,
+            country, first_website, old_website, priority
+        ) VALUES ('website', ?, ?, ?, ?, ?, 'synexlabs.in contact form', 1, 1, ?, 'Not mentioned', ?,
+                  'Direct enquiry from the website contact form.', 1.0, ?, 'new', ?, ?, ?, ?, ?)
+        ON CONFLICT(platform, post_id) DO NOTHING;
+        """
+        with get_connection() as conn:
+            cur = conn.execute(
+                query,
+                (
+                    message_id, name, f"New brief: {need} from {name}", body,
+                    f"mailto:{reply_email}", need, draft_reply, datetime.utcnow().isoformat(), reply_email,
+                    country, 1 if first_website else 0, 1 if old_website else 0,
+                    40 + lead_priority(country, first_website, 1.0, old_website),
+                ),
+            )
+            conn.commit()
+            return cur.lastrowid if cur.rowcount > 0 else None
 
     @staticmethod
     def mark_as_contacted(lead_id: int):

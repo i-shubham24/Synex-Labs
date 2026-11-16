@@ -53,6 +53,29 @@ HIGH_INTENT_KEYWORDS = [
     "landing page needed",
     "need a landing page",
     
+    # New businesses getting their first website
+    "new business",
+    "just started my business",
+    "starting a business",
+    "starting my own business",
+    "opening soon",
+    "launching my business",
+    "first website",
+    "website for my business",
+    "website for my shop",
+    "website for my store",
+    "website for my restaurant",
+    "website for my clinic",
+    "website for my salon",
+    "need a website for",
+    "small business website",
+    # Hinglish (India)
+    "website chahiye",
+    "website banwana",
+    "website banana hai",
+    "website bana do",
+    "website developer chahiye",
+
     # AI agents / tools
     "build an ai agent",
     "need an ai tool",

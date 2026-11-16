@@ -33,9 +33,15 @@ class TwitterScraper(BaseScraper):
         Polls configured search queries across Nitter RSS and Playwright fallback.
         """
         all_posts: List[ScrapedPost] = []
+        # X shows a login wall to logged-out browsers, so launching Chrome without
+        # saved cookies only burns RAM. Run `python main.py twitter-login` once to enable it.
+        browser_enabled = settings.TWITTER_AUTH_STATE_PATH.exists()
+        if not browser_enabled:
+            logger.info("[Twitter] No saved X login; browser fallback disabled (run `python main.py twitter-login`).")
+
         for i, query in enumerate(self.search_queries):
             posts = self._fetch_via_nitter(query)
-            if not posts:
+            if not posts and browser_enabled:
                 logger.info(f"[Twitter] Nitter empty or blocked for '{query}'. Trying stealth browser...")
                 posts = self._fetch_via_playwright(query)
 

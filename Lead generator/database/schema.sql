@@ -57,3 +57,118 @@ CREATE TABLE IF NOT EXISTS ingestion_runs (
     started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     completed_at TIMESTAMP
 );
+
+
+-- ====================================================================
+-- Maps Prospector: local businesses with no website or a weak one
+-- ====================================================================
+
+-- 3. One row per business found on Google Places or OpenStreetMap
+CREATE TABLE IF NOT EXISTS prospects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,                       -- 'google_places' | 'osm'
+    place_id TEXT NOT NULL,                     -- Google place id or OSM 'node/123'
+    name TEXT NOT NULL,
+    niche TEXT,                                 -- Search niche, e.g. 'dentist'
+    city TEXT,                                  -- Search city, e.g. 'Austin, TX'
+    address TEXT,
+    phone TEXT,
+    email TEXT,                                 -- Found on their website, if any
+    website TEXT,
+    socials TEXT,                               -- JSON list of social profile URLs
+    maps_url TEXT,
+    rating REAL,
+    review_count INTEGER,
+
+    -- Website audit
+    tier TEXT,                                  -- no_website | no_website_unverified | social_only | broken_website | weak_website | ok_website
+    heat_score INTEGER DEFAULT 0,               -- 0-100, higher = hotter lead
+    issues TEXT,                                -- JSON list of human-readable findings
+    audit_json TEXT,                            -- Raw audit measurements
+    audited_at TIMESTAMP,
+
+    -- Outreach
+    opener TEXT,                                -- Drafted first message (Gemini or template)
+    opener_source TEXT,                         -- 'gemini' | 'template'
+    status TEXT DEFAULT 'new',                  -- new | alerted | contacted | skipped | ignored
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    alerted_at TIMESTAMP,
+    contacted_at TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_prospects_source_place ON prospects(source, place_id);
+CREATE INDEX IF NOT EXISTS idx_prospects_status ON prospects(status);
+CREATE INDEX IF NOT EXISTS idx_prospects_heat ON prospects(heat_score);
+
+-- 4. Which niche + city searches ran, so paid API calls are not repeated too often
+CREATE TABLE IF NOT EXISTS prospect_searches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,
+    niche TEXT NOT NULL,
+    city TEXT NOT NULL,
+    results_count INTEGER DEFAULT 0,
+    new_count INTEGER DEFAULT 0,
+    last_run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_prospect_searches_key ON prospect_searches(source, niche, city);
+
+-- 5. Monthly paid-API call counter (budget guard for Google Places)
+CREATE TABLE IF NOT EXISTS api_usage (
+    api TEXT NOT NULL,
+    month TEXT NOT NULL,                        -- 'YYYY-MM' (UTC)
+    calls INTEGER DEFAULT 0,
+    PRIMARY KEY (api, month)
+);
+
+-- 6. City name -> OpenStreetMap area id (geocoded once via Nominatim)
+CREATE TABLE IF NOT EXISTS geocode_cache (
+    query TEXT PRIMARY KEY,
+    osm_area_id INTEGER,
+    display_name TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+-- ====================================================================
+-- Outreach automation
+-- ====================================================================
+
+-- 7. Every email sent or received about a prospect or lead
+CREATE TABLE IF NOT EXISTS emails (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prospect_id INTEGER,
+    lead_id INTEGER,
+    direction TEXT NOT NULL,                    -- 'out' | 'in'
+    kind TEXT,                                  -- opener | followup1..3 | reply | inbound
+    message_id TEXT,
+    in_reply_to TEXT,
+    from_addr TEXT,
+    to_addr TEXT,
+    subject TEXT,
+    body TEXT,
+    status TEXT,                                -- sent | failed | received | bounced
+    error TEXT,
+    label TEXT,                                 -- Gemini reply label (interested, question, ...)
+    summary TEXT,
+    draft_reply TEXT,
+    handled INTEGER DEFAULT 0,                  -- 1 once a human dealt with an incoming email
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_emails_prospect ON emails(prospect_id);
+CREATE INDEX IF NOT EXISTS idx_emails_message_id ON emails(message_id);
+CREATE INDEX IF NOT EXISTS idx_emails_direction ON emails(direction, created_at);
+
+-- 8. Never contact these again (email address or phone digits)
+CREATE TABLE IF NOT EXISTS suppression (
+    value TEXT PRIMARY KEY,
+    reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 9. Small engine state (digest dates, IMAP position, alert cooldowns)
+CREATE TABLE IF NOT EXISTS kv (
+    key TEXT PRIMARY KEY,
+    value TEXT
+);

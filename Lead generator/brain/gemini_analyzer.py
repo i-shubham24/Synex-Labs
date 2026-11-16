@@ -1,14 +1,29 @@
 import json
 import logging
 import re
-from typing import Optional, Dict, Any
+import threading
+import time
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 import requests
 
 from config.settings import settings
-from .prompts import SYSTEM_INSTRUCTION, ANALYSIS_PROMPT_TEMPLATE
+from .prompts import (
+    SYSTEM_INSTRUCTION,
+    ANALYSIS_PROMPT_TEMPLATE,
+    PROSPECT_SYSTEM_INSTRUCTION,
+    PROSPECT_OPENER_TEMPLATE,
+)
 
 logger = logging.getLogger("gemini_analyzer")
+
+
+class GeminiUnavailable(Exception):
+    """
+    Raised when Gemini cannot be reached (missing key, quota exhausted, network error).
+    Callers must leave the item pending and retry later. The engine never guesses
+    a lead decision without the model.
+    """
 
 
 class LeadAnalysisResult(BaseModel):
@@ -19,20 +34,30 @@ class LeadAnalysisResult(BaseModel):
     draft_icebreaker: str = Field(description="2-sentence conversational outreach message")
     confidence_score: float = Field(default=0.0, description="Confidence score between 0.0 and 1.0")
     reasoning: str = Field(default="", description="Explanation of qualification decision")
+    country: str = Field(default="Unknown", description="Buyer's country if stated or implied")
+    first_website: bool = Field(default=False, description="No website yet")
+    old_website: bool = Field(default=False, description="Wants to upgrade an old / unresponsive site")
 
 
 class GeminiAnalyzer:
     """
     Connects to Google Gemini Free Tier API.
-    Performs AI lead filtering and generates tailored icebreakers.
+    Performs AI lead filtering and generates tailored icebreakers / prospect openers.
     """
+
+    # Shared across instances so every caller respects the free-tier RPM limit.
+    _pace_lock = threading.Lock()
+    _last_call_at = 0.0
+    # Last failure, read by the health monitor
+    last_error: Optional[str] = None
+    last_error_at: float = 0.0
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or settings.GEMINI_API_KEY
         self.model = model or settings.GEMINI_MODEL
         self._client = None
 
-        if self.api_key:
+        if self.is_configured():
             try:
                 from google import genai
                 self._client = genai.Client(
@@ -46,6 +71,10 @@ class GeminiAnalyzer:
         """Returns True if a Gemini API key is present."""
         return bool(self.api_key and self.api_key.strip() and not self.api_key.startswith("your_"))
 
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
     def analyze_post(
         self,
         platform: str,
@@ -57,118 +86,148 @@ class GeminiAnalyzer:
     ) -> LeadAnalysisResult:
         """
         Evaluates a post using Gemini and returns structured LeadAnalysisResult.
-        Falls back to rule-based offline parsing if API key is not configured.
+        Raises GeminiUnavailable if the model cannot be reached, and ValueError
+        if the model returned unparseable output for this one post.
         """
-        if not self.is_configured():
-            logger.info("Gemini API key not configured. Using heuristic offline analysis.")
-            return self._heuristic_fallback(title, content)
-
         prompt = ANALYSIS_PROMPT_TEMPLATE.format(
             platform=platform,
             source_channel=source_channel or "N/A",
             title=title or "N/A",
             author=author or "Anonymous",
             flair=flair or "None",
-            content=content[:3000],  # Guard against massive token overflow
+            content=(content or "")[:3000],  # Guard against massive token overflow
+        )
+        data = self._parse_json(self._generate(prompt, SYSTEM_INSTRUCTION))
+        return LeadAnalysisResult(
+            is_valid_lead=bool(data.get("is_valid_lead", False)),
+            project_category=str(data.get("project_category", "Other")),
+            budget_indicator=str(data.get("budget_indicator", "Not mentioned")),
+            draft_icebreaker=str(data.get("draft_icebreaker", "")),
+            confidence_score=float(data.get("confidence_score", 0.0)),
+            reasoning=str(data.get("reasoning", "")),
+            country=str(data.get("country") or "Unknown").strip()[:60] or "Unknown",
+            first_website=bool(data.get("first_website", False)),
+            old_website=bool(data.get("old_website", False)),
         )
 
+    def write_prospect_opener(self, context: Dict[str, Any]) -> str:
+        """
+        Writes a short first message for a local business prospect, grounded in
+        the audit findings passed in `context`. Raises GeminiUnavailable / ValueError.
+        """
+        prompt = PROSPECT_OPENER_TEMPLATE.format(**context)
+        data = self._parse_json(self._generate(prompt, PROSPECT_SYSTEM_INSTRUCTION))
+        opener = str(data.get("opener", "")).strip()
+        if not opener:
+            raise ValueError("Gemini returned an empty opener")
+        return opener
+
+    def generate_json(self, prompt: str, system_instruction: str, images: Optional[List[bytes]] = None) -> Dict[str, Any]:
+        """Any structured task. Images (PNG bytes) are sent alongside the prompt."""
+        return self._parse_json(self._generate(prompt, system_instruction, images=images))
+
+    # ------------------------------------------------------------------
+    # Transport
+    # ------------------------------------------------------------------
+
+    def _pace(self):
+        """Keeps calls under the free-tier requests-per-minute limit."""
+        with GeminiAnalyzer._pace_lock:
+            wait = settings.GEMINI_MIN_INTERVAL_SECONDS - (time.monotonic() - GeminiAnalyzer._last_call_at)
+            if wait > 0:
+                time.sleep(wait)
+            GeminiAnalyzer._last_call_at = time.monotonic()
+
+    def _generate(self, prompt: str, system_instruction: str, images: Optional[List[bytes]] = None) -> str:
+        if not self.is_configured():
+            raise GeminiUnavailable("GEMINI_API_KEY is not set in .env")
+
+        self._pace()
         try:
             if self._client:
-                return self._call_sdk(prompt)
+                text = self._call_sdk(prompt, system_instruction, images)
             else:
-                return self._call_rest(prompt)
+                text = self._call_rest(prompt, system_instruction, images)
+            GeminiAnalyzer.last_error = None
+            return text
         except Exception as e:
-            logger.error(f"Gemini API call failed: {e}. Falling back to REST/Heuristics.")
-            try:
-                return self._call_rest(prompt)
-            except Exception as rest_err:
-                logger.error(f"REST call also failed: {rest_err}")
-                return self._heuristic_fallback(title, content, error_note=str(e))
+            GeminiAnalyzer.last_error = self._short_error(e)
+            GeminiAnalyzer.last_error_at = time.time()
+            raise GeminiUnavailable(GeminiAnalyzer.last_error) from e
 
-    def _call_sdk(self, prompt: str) -> LeadAnalysisResult:
+    def _call_sdk(self, prompt: str, system_instruction: str, images: Optional[List[bytes]] = None) -> str:
         """Invokes Gemini using official google-genai SDK."""
         from google.genai import types
 
         config = types.GenerateContentConfig(
-            system_instruction=SYSTEM_INSTRUCTION,
+            system_instruction=system_instruction,
             response_mime_type="application/json",
             temperature=0.2,
         )
-
+        contents: Any = prompt
+        if images:
+            contents = [types.Part.from_bytes(data=img, mime_type=self._mime(img)) for img in images] + [prompt]
         response = self._client.models.generate_content(
             model=self.model,
-            contents=prompt,
+            contents=contents,
             config=config,
         )
+        return response.text or ""
 
-        raw_text = response.text or ""
-        return self._parse_json_response(raw_text)
+    def _call_rest(self, prompt: str, system_instruction: str, images: Optional[List[bytes]] = None) -> str:
+        """Direct REST call to Google Generative Language API (used when the SDK is missing)."""
+        import base64
 
-    def _call_rest(self, prompt: str) -> LeadAnalysisResult:
-        """Direct REST fallback to Google Generative Language API."""
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
-        headers = {"Content-Type": "application/json"}
-        
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+        parts = [
+            {"inline_data": {"mime_type": self._mime(img), "data": base64.b64encode(img).decode()}}
+            for img in (images or [])
+        ] + [{"text": prompt}]
         payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "systemInstruction": {"parts": [{"text": SYSTEM_INSTRUCTION}]},
+            "contents": [{"parts": parts}],
+            "systemInstruction": {"parts": [{"text": system_instruction}]},
             "generationConfig": {
                 "responseMimeType": "application/json",
                 "temperature": 0.2,
             },
         }
-
-        resp = requests.post(url, json=payload, headers=headers, timeout=30.0)
+        resp = requests.post(
+            url,
+            json=payload,
+            headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
+            timeout=30.0,
+        )
         resp.raise_for_status()
-        data = resp.json()
-
-        candidates = data.get("candidates", [])
+        candidates = resp.json().get("candidates", [])
         if not candidates:
             raise ValueError("No candidates returned from Gemini API")
-
         parts = candidates[0].get("content", {}).get("parts", [])
-        raw_text = parts[0].get("text", "") if parts else ""
-        return self._parse_json_response(raw_text)
+        return parts[0].get("text", "") if parts else ""
 
-    def _parse_json_response(self, raw_text: str) -> LeadAnalysisResult:
-        """Cleans and validates the JSON output from Gemini."""
-        cleaned = raw_text.strip()
-        # Remove potential markdown markdown ```json ... ``` wrappers
+    @staticmethod
+    def _mime(img: bytes) -> str:
+        return "image/jpeg" if img[:2] == b"\xff\xd8" else "image/png"
+
+    @staticmethod
+    def _parse_json(raw_text: str) -> Dict[str, Any]:
+        """Cleans and parses the JSON output from Gemini. Raises ValueError on bad output."""
+        cleaned = (raw_text or "").strip()
         if cleaned.startswith("```"):
             cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
-            cleaned = re.sub(r"\s*```$", "", cleaned)
-            cleaned = cleaned.strip()
+            cleaned = re.sub(r"\s*```$", "", cleaned).strip()
+        try:
+            data = json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Gemini returned invalid JSON: {cleaned[:120]}") from e
+        if not isinstance(data, dict):
+            raise ValueError("Gemini returned JSON that is not an object")
+        return data
 
-        data = json.loads(cleaned)
-        return LeadAnalysisResult(
-            is_valid_lead=bool(data.get("is_valid_lead", False)),
-            project_category=str(data.get("project_category", "Custom Web App")),
-            budget_indicator=str(data.get("budget_indicator", "Not mentioned")),
-            draft_icebreaker=str(data.get("draft_icebreaker", "")),
-            confidence_score=float(data.get("confidence_score", 0.8)),
-            reasoning=str(data.get("reasoning", "")),
-        )
-
-    def _heuristic_fallback(self, title: str, content: str, error_note: str = "") -> LeadAnalysisResult:
-        """
-        Offline fallback when Gemini API key is missing or quota is exhausted.
-        Ensures the system never crashes and can be tested locally.
-        """
-        text = f"{title} {content}".lower()
-        is_hiring = any(k in text for k in ["hiring", "need a developer", "need a website", "looking for developer", "build an app"])
-        is_selling = any(k in text for k in ["for hire", "i will build", "hire me", "my portfolio"])
-
-        is_valid = is_hiring and not is_selling
-
-        return LeadAnalysisResult(
-            is_valid_lead=is_valid,
-            project_category="Website Redesign" if "redesign" in text else "Custom Web App",
-            budget_indicator="Not mentioned",
-            draft_icebreaker=(
-                "Hey! Saw you're looking for help building this out. At SynexLabs we specialize in "
-                "custom high-performance web applications and would love to share a couple of architecture ideas."
-                if is_valid else ""
-            ),
-            confidence_score=0.5,
-            reasoning=f"Heuristic offline rule evaluation. {error_note}".strip(),
-        )
+    @staticmethod
+    def _short_error(e: Exception) -> str:
+        """One-line error summary with any API key scrubbed out."""
+        text = re.sub(r"key=[A-Za-z0-9_\-]+", "key=REDACTED", str(e))
+        text = " ".join(text.split())
+        if "429" in text or "RESOURCE_EXHAUSTED" in text:
+            return "Gemini quota exhausted (429). Remaining items stay pending until quota resets."
+        return f"{type(e).__name__}: {text[:200]}"

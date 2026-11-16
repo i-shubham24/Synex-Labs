@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="engine-token" content="__ENGINE_TOKEN__">
+  <meta name="color-scheme" content="light dark">
+  <title>Synex Lead Engine</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="busy-bar" id="busy-bar" hidden></div>
+
+  <header class="top">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">SN</span>
+      <div class="brand-text">
+        <strong>Lead Engine</strong>
+        <span class="status" id="status"><i class="dot"></i><span id="status-text">Connecting</span></span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="btn" id="run-social" type="button">Scan socials now</button>
+      <button class="btn primary" id="run-prospect" type="button">Find prospects now</button>
+      <button class="btn ghost" id="stop" type="button">Stop engine</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="kpis" id="kpis" aria-label="Summary"></section>
+    <section class="health" id="health" aria-label="Connections"></section>
+
+    <div class="grid">
+      <section class="panel">
+        <div class="panel-head">
+          <div class="tabs" role="tablist">
+            <button class="tab active" role="tab" data-tab="prospects" type="button">Prospects <span class="count" id="count-prospects"></span></button>
+            <button class="tab" role="tab" data-tab="followups" type="button">Follow-ups <span class="count" id="count-followups"></span></button>
+            <button class="tab" role="tab" data-tab="inbox" type="button">Inbox <span class="count" id="count-inbox"></span></button>
+            <button class="tab" role="tab" data-tab="leads" type="button">Social &amp; website <span class="count" id="count-leads"></span></button>
+            <button class="tab" role="tab" data-tab="pipeline" type="button">Pipeline</button>
+            <button class="tab" role="tab" data-tab="insights" type="button">Insights</button>
+          </div>
+          <div class="filters" id="filters">
+            <button class="filter active" data-filter="open" type="button">To contact</button>
+            <button class="filter" data-filter="first" type="button" id="filter-first">No website</button>
+            <button class="filter" data-filter="upgrade" type="button" id="filter-upgrade">Old website</button>
+            <button class="filter" data-filter="active" type="button">In progress</button>
+            <button class="filter" data-filter="closed" type="button">Closed</button>
+            <button class="filter" data-filter="all" type="button">All</button>
+          </div>
+        </div>
+        <div class="list" id="list"></div>
+      </section>
+
+      <aside class="side">
+        <section class="panel">
+          <h2>Schedule</h2>
+          <div id="jobs" class="jobs"></div>
+          <div class="mini-actions">
+            <button class="btn small ghost" data-run="followups" type="button">Run follow-ups</button>
+            <button class="btn small ghost" data-run="pages" type="button">Build pages</button>
+            <button class="btn small ghost" data-run="inbox" type="button">Check inbox</button>
+            <button class="btn small ghost" data-run="digest" type="button">Send digest</button>
+          </div>
+        </section>
+        <section class="panel">
+          <h2>Activity</h2>
+          <pre class="log" id="log"></pre>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <div class="overlay" id="offline" hidden>
+    <div class="overlay-card">
+      <span class="mark" aria-hidden="true">SN</span>
+      <h2 id="offline-title">Engine stopped</h2>
+      <p id="offline-text">Use the Synex Lead Engine shortcut on your desktop to start it again.</p>
+    </div>
+  </div>
+
+  <div class="overlay" id="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <div class="modal-head"><h2 id="modal-title"></h2><button class="btn small ghost" id="modal-close" type="button">Close</button></div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -5,8 +5,21 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from config.settings import settings
+from config.keywords import HIGH_INTENT_KEYWORDS, NEGATIVE_KEYWORDS
 
 logger = logging.getLogger("ingestion.base")
+
+
+def has_buyer_intent(text: str) -> bool:
+    """True when the text contains a high-intent buyer phrase."""
+    lowered = (text or "").lower()
+    return any(kw in lowered for kw in HIGH_INTENT_KEYWORDS)
+
+
+def is_seller_noise(text: str) -> bool:
+    """True when the text reads like a freelancer or agency pitching themselves."""
+    lowered = (text or "").lower()
+    return any(kw in lowered for kw in NEGATIVE_KEYWORDS)
 
 
 @dataclass

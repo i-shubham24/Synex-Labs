@@ -18,3 +18,10 @@ apscheduler>=3.10.0
 
 # Terminal UI & Diagnostics
 rich>=13.7.0
+
+# Browser fallback for X / Meta (uses your installed Chrome via CHROME_PATH)
+playwright>=1.45.0
+playwright-stealth>=2.0.0
+
+# Optional: official Reddit API client (only used when REDDIT_CLIENT_ID/SECRET are set)
+praw>=7.7.0

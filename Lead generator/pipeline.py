@@ -18,8 +18,9 @@ from database.repository import LeadRepository
 from ingestion.reddit_scraper import RedditScraper
 from ingestion.twitter_scraper import TwitterScraper
 from ingestion.meta_scraper import MetaScraper
+from ingestion.bluesky_scraper import BlueskyScraper
 from ingestion.base import ScrapedPost
-from brain.gemini_analyzer import GeminiAnalyzer, LeadAnalysisResult
+from brain.gemini_analyzer import GeminiAnalyzer, GeminiUnavailable, LeadAnalysisResult
 from delivery.telegram_bot import TelegramAlerter
 
 logger = logging.getLogger("pipeline")
@@ -30,7 +31,7 @@ class IntentEnginePipeline:
     """
     Unified Multi-Platform Ingestion & Qualification Pipeline.
     Coordinates:
-    - Module 1: Reddit, Twitter/X, and Meta Ads Scrapers
+    - Module 1: Reddit, Twitter/X, Bluesky, and Meta Ads Scrapers
     - Module 2: Gemini Flash AI Brain
     - Module 3: Telegram Alerting Layer
     """
@@ -40,15 +41,17 @@ class IntentEnginePipeline:
         self.reddit_scraper = RedditScraper()
         self.twitter_scraper = TwitterScraper()
         self.meta_scraper = MetaScraper()
+        self.bluesky_scraper = BlueskyScraper()
         self.gemini_analyzer = GeminiAnalyzer()
         self.telegram_alerter = TelegramAlerter()
 
     def run_full_cycle(self, platforms: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Executes a complete ingestion, analysis, and dispatch cycle across specified platforms.
-        Default platforms: ['reddit', 'twitter'] (Meta runs twice daily via scheduler).
+        Default platforms: Reddit, Twitter/X, plus Bluesky when configured
+        (Meta runs twice daily via scheduler).
         """
-        target_platforms = platforms or ["reddit", "twitter"]
+        target_platforms = platforms or self.default_platforms()
         console.print("[bold cyan]🚀 Starting Multi-Platform Intent Ingestion Pipeline[/bold cyan]")
         console.print(f"[dim]Active platforms: {', '.join(target_platforms)}[/dim]\n")
 
@@ -65,6 +68,15 @@ class IntentEnginePipeline:
             twitter_posts = self.twitter_scraper.fetch_new_posts()
             console.print(f"  📥 Twitter: Found [green]{len(twitter_posts)}[/green] candidates.")
             all_scraped.extend(twitter_posts)
+
+        if "bluesky" in target_platforms:
+            if self.bluesky_scraper.is_configured():
+                console.print("[bold blue]Scanning Bluesky Search...[/bold blue]")
+                bluesky_posts = self.bluesky_scraper.fetch_new_posts()
+                console.print(f"  📥 Bluesky: Found [green]{len(bluesky_posts)}[/green] candidates.")
+                all_scraped.extend(bluesky_posts)
+            else:
+                console.print("[dim]Bluesky skipped: add BLUESKY_HANDLE and BLUESKY_APP_PASSWORD to .env.[/dim]")
 
         if "meta" in target_platforms:
             console.print("[bold blue]Scanning Meta Ad Comments...[/bold blue]")
@@ -115,35 +127,62 @@ class IntentEnginePipeline:
             "telegram_alerted": alerted_count,
         }
 
+    def default_platforms(self) -> List[str]:
+        platforms = ["reddit", "twitter"]
+        if self.bluesky_scraper.is_configured():
+            platforms.append("bluesky")
+        return platforms
+
     def process_pending_posts(self, limit: int = 30) -> int:
-        """Processes posts in SQLite awaiting Gemini AI evaluation."""
+        """
+        Processes posts in SQLite awaiting Gemini AI evaluation.
+        If Gemini is unavailable the posts stay pending and are retried next cycle;
+        no lead decision is ever made without the model.
+        """
         pending_posts = LeadRepository.get_unprocessed_posts(limit=limit)
         if not pending_posts:
             console.print("[dim]No pending posts requiring AI processing.[/dim]")
             return 0
 
+        if not self.gemini_analyzer.is_configured():
+            console.print(
+                f"[bold red]⚠ Gemini is not configured (GEMINI_API_KEY missing). "
+                f"{len(pending_posts)} posts stay pending.[/bold red]"
+            )
+            return 0
+
         console.print(f"\n🧠 Evaluating [bold cyan]{len(pending_posts)}[/bold cyan] posts with Gemini Flash Analyzer...")
         valid_leads_count = 0
 
-        for post in pending_posts:
+        for index, post in enumerate(pending_posts):
             post_id = post["id"]
             title = post["title"]
-            content = post["content"]
             source = post["source_channel"]
-            author = post["author"]
-            flair = post.get("flair") or ""
             platform = post["platform"]
 
-            console.print(f"[dim]Analyzing {platform} #{post_id} from {source}: {title[:45]}...[/dim]")
+            console.print(f"[dim]Analyzing {platform} #{post_id} from {source}: {(title or '')[:45]}...[/dim]")
 
-            analysis: LeadAnalysisResult = self.gemini_analyzer.analyze_post(
-                platform=platform,
-                title=title,
-                content=content,
-                source_channel=source,
-                author=author,
-                flair=flair,
-            )
+            try:
+                analysis: LeadAnalysisResult = self.gemini_analyzer.analyze_post(
+                    platform=platform,
+                    title=title,
+                    content=post["content"],
+                    source_channel=source,
+                    author=post["author"],
+                    flair=post.get("flair") or "",
+                )
+            except GeminiUnavailable as e:
+                remaining = len(pending_posts) - index
+                logger.error(f"Gemini unavailable: {e}")
+                console.print(
+                    f"[bold red]⚠ Gemini unavailable: {e}[/bold red]\n"
+                    f"[yellow]{remaining} posts left pending, will retry next cycle.[/yellow]"
+                )
+                break
+            except ValueError as e:
+                logger.warning(f"Skipping post #{post_id} this cycle: {e}")
+                console.print(f"  [yellow]Skipped (bad model output), will retry: {e}[/yellow]")
+                continue
 
             LeadRepository.update_lead_analysis(
                 lead_id=post_id,
@@ -153,6 +192,9 @@ class IntentEnginePipeline:
                 draft_icebreaker=analysis.draft_icebreaker,
                 ai_reasoning=analysis.reasoning,
                 confidence_score=analysis.confidence_score,
+                country=analysis.country,
+                first_website=analysis.first_website,
+                old_website=analysis.old_website,
             )
 
             if analysis.is_valid_lead:
