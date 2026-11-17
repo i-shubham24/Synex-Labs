@@ -241,23 +241,27 @@ function leadChips(l) {
   return out.length ? el("div", { class: "chips-row" }, out) : null;
 }
 
+// Last channel opened per prospect, sent along when "Mark as contacted" is pressed.
+const usedChannel = {};
+
 function contactButtons(p) {
   const out = [];
-  const markOn = (channel) => () => { setTimeout(() => act(`/api/prospect/${p.id}/contacted`, { channel }, "Marked as contacted"), 400); };
+  // Opening a channel never changes the status; the lead stays here until "Mark as contacted".
+  const markOn = (channel) => () => { usedChannel[p.id] = channel; };
   if (p.links.whatsapp) out.push(link(p.links.whatsapp, "WhatsApp", { cls: "btn small primary", onclick: markOn("whatsapp") }));
   if (p.can_email) {
     out.push(el("button", { class: "btn small" + (p.links.whatsapp ? "" : " primary"), type: "button", onclick: () => sendOpenerEmail(p) }, "Send email"));
   } else if (p.links.mailto) {
     out.push(link(p.links.mailto, "Email", { cls: "btn small", onclick: markOn("email") }));
   }
-  if (p.links.instagram) out.push(link(p.links.instagram, "Instagram", { cls: "btn small ghost", onclick: () => copy(p.opener, "Opener copied, paste it in the DM") }));
+  if (p.links.instagram) out.push(link(p.links.instagram, "Instagram", { cls: "btn small ghost", onclick: () => { usedChannel[p.id] = "instagram"; copy(p.opener, "Opener copied, paste it in the DM"); } }));
   if (p.links.tel) out.push(link(p.links.tel, "Call", { cls: "btn small ghost" }));
   return out;
 }
 
 async function sendOpenerEmail(p) {
-  if (!confirm(`Send this email to ${p.email}?\n\nSubject: ${p.subject}\n\n${p.opener}`)) return;
-  await act(`/api/prospect/${p.id}/email-opener`, { subject: p.subject, body: p.opener });
+  if (!confirm(`Send this email to ${p.email}?\n\nSubject: ${p.subject}\n\n${p.email_body}`)) return;
+  await act(`/api/prospect/${p.id}/email-opener`, { subject: p.subject, body: p.email_body });
 }
 
 function pagesRow(p) {
@@ -286,15 +290,28 @@ async function buildPages(p, btn) {
   await act(`/api/prospect/${p.id}/pages`, null, "Pages ready");
 }
 
+// Prospects whose box shows the email template instead of the message (kept across refreshes).
+const showEmail = {};
+
 function openerBox(p) {
+  const asEmail = Boolean(p.email_body && showEmail[p.id]);
+  const label = p.opener_source === "gemini" ? "AI opener" : "Template opener";
+  const flip = (on) => (e) => { showEmail[p.id] = on; e.currentTarget.closest(".opener").replaceWith(openerBox(p)); };
+  const title = p.email_body
+    ? el("span", { class: "tag-switch" },
+        el("button", { class: "copy" + (asEmail ? " off" : ""), type: "button", "aria-pressed": String(!asEmail), onclick: flip(false) }, label),
+        el("button", { class: "copy" + (asEmail ? "" : " off"), type: "button", "aria-pressed": String(asEmail), onclick: flip(true) }, "Email template"))
+    : el("span", {}, label);
+  const tools = asEmail
+    ? [el("button", { class: "copy", type: "button", onclick: () => copy(p.subject, "Subject copied") }, "Copy subject"),
+       el("button", { class: "copy", type: "button", onclick: () => copy(p.email_body, "Email copied") }, "Copy email")]
+    : [p.opener_source !== "gemini" && state.health.gemini
+         ? el("button", { class: "copy", type: "button", onclick: (e) => writeOpener(p.id, e.currentTarget) }, "Write with AI") : null,
+       el("button", { class: "copy", type: "button", onclick: () => copy(p.opener, "Opener copied") }, "Copy")];
   return el("div", { class: "opener" },
-    el("div", { class: "tag" },
-      el("span", {}, p.opener_source === "gemini" ? "AI opener" : "Template opener"),
-      el("span", { class: "tag-actions" },
-        p.opener_source !== "gemini" && state.health.gemini
-          ? el("button", { class: "copy", type: "button", onclick: (e) => writeOpener(p.id, e.currentTarget) }, "Write with AI") : null,
-        el("button", { class: "copy", type: "button", onclick: () => copy(p.opener, "Opener copied") }, "Copy"))),
-    el("div", {}, p.opener));
+    el("div", { class: "tag" }, title, el("span", { class: "tag-actions" }, tools)),
+    asEmail ? el("div", { class: "email-subject" }, "Subject: ", el("strong", {}, p.subject)) : null,
+    el("div", { class: asEmail ? "email-text" : null }, asEmail ? p.email_body : p.opener));
 }
 
 async function writeOpener(id, btn) {
@@ -341,7 +358,7 @@ function prospectRow(p, i) {
   if (open) {
     actions = [
       ...contactButtons(p),
-      el("button", { class: "btn small ghost", type: "button", onclick: () => act(`/api/prospect/${p.id}/contacted`, null, "Marked as contacted") }, "Contacted"),
+      el("button", { class: "btn small ghost", type: "button", onclick: () => act(`/api/prospect/${p.id}/contacted`, usedChannel[p.id] ? { channel: usedChannel[p.id] } : null, "Marked as contacted") }, "Mark as contacted"),
       el("button", { class: "btn small ghost", type: "button", onclick: () => act(`/api/prospect/${p.id}/stage/skipped`, null, "Skipped") }, "Skip"),
     ];
   } else {
@@ -373,9 +390,9 @@ function prospectRow(p, i) {
 function followupRow(p, i) {
   const done = () => act(`/api/prospect/${p.id}/followup/done`, null, "Follow-up logged");
   const buttons = [];
-  if (p.followup_links.whatsapp) buttons.push(link(p.followup_links.whatsapp, "WhatsApp", { cls: "btn small primary", onclick: () => setTimeout(done, 400) }));
+  if (p.followup_links.whatsapp) buttons.push(link(p.followup_links.whatsapp, "WhatsApp", { cls: "btn small primary" }));
   if (p.can_email) buttons.push(el("button", { class: "btn small", type: "button", onclick: () => act(`/api/prospect/${p.id}/followup/email`) }, "Email now"));
-  else if (p.followup_links.mailto) buttons.push(link(p.followup_links.mailto, "Email", { cls: "btn small", onclick: () => setTimeout(done, 400) }));
+  else if (p.followup_links.mailto) buttons.push(link(p.followup_links.mailto, "Email", { cls: "btn small" }));
   buttons.push(
     el("button", { class: "btn small ghost", type: "button", onclick: done }, "Sent"),
     el("button", { class: "btn small ghost", type: "button", onclick: () => act(`/api/prospect/${p.id}/stage/replied`, null, "Marked as replied") }, "Replied"),
@@ -428,8 +445,8 @@ function leadRow(l, i) {
   const meta = [l.project_category, l.budget_indicator !== "Not mentioned" ? l.budget_indicator : null, l.source_channel, relative(l.scraped_at)].filter(Boolean).join(" · ");
   const isWeb = l.platform === "website";
   const actions = [];
-  if (isWeb && l.reply_link) actions.push(link(l.reply_link, "Reply by email", { cls: "btn small primary", onclick: () => setTimeout(() => act(`/api/lead/${l.id}/stage/contacted`, null, "Marked as contacted"), 400) }));
-  if (OPEN.includes(l.status)) actions.push(el("button", { class: "btn small ghost", type: "button", onclick: () => act(`/api/lead/${l.id}/stage/contacted`, null, "Marked as contacted") }, "Contacted"));
+  if (isWeb && l.reply_link) actions.push(link(l.reply_link, "Reply by email", { cls: "btn small primary" }));
+  if (OPEN.includes(l.status)) actions.push(el("button", { class: "btn small ghost", type: "button", onclick: () => act(`/api/lead/${l.id}/stage/contacted`, null, "Marked as contacted") }, "Mark as contacted"));
   else actions.push(stageSelect(l.status, state.stages.lead, (s) => act(`/api/lead/${l.id}/stage/${s}`)));
   return el("article", { class: `row${closed ? " done" : ""}`, style: `--i:${i}` },
     el("div", { class: "platform" }, l.platform),

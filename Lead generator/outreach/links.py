@@ -66,6 +66,27 @@ def mailto_link(email: str, subject: str = "", body: str = "") -> Optional[str]:
     return f"mailto:{email}" + (f"?{query}" if query else "")
 
 
+def compose_link(email: str, subject: str = "", body: str = "") -> Optional[str]:
+    """
+    Opens a new email with the address, subject and message filled in. Gmail compose in the
+    browser by default, because a plain mailto: link does nothing when no mail app is set up.
+    EMAIL_COMPOSE=mailto switches back to the desktop mail app.
+    """
+    if not email or "@" not in email:
+        return None
+    from config.settings import settings
+    if settings.EMAIL_COMPOSE == "mailto":
+        return mailto_link(email, subject, body)
+    params = {"view": "cm", "fs": "1", "to": email}
+    if settings.GMAIL_ACCOUNT:
+        params["authuser"] = settings.GMAIL_ACCOUNT
+    if subject:
+        params["su"] = subject
+    if body:
+        params["body"] = body
+    return "https://mail.google.com/mail/?" + urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
+
+
 def tel_link(phone: str) -> Optional[str]:
     cleaned = re.sub(r"[^\d+]", "", phone or "")
     return f"tel:{cleaned}" if len(cleaned) >= 6 else None

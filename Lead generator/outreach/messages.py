@@ -34,15 +34,30 @@ def offer(p: Dict[str, Any]) -> str:
 
 
 def opener_subject(p: Dict[str, Any]) -> str:
+    """Subject of the first email, matching the short pitch (website, Google presence, SEO)."""
     name = p.get("name", "your business")
     tier = p.get("tier")
     if tier in ("no_website", "no_website_unverified"):
-        return f"A website for {name}?"
+        return f"A website and Google presence for {name}"
     if tier == "social_only":
-        return f"{name}: a site of your own"
+        return f"A website of your own for {name}"
     if tier == "broken_website":
-        return f"Heads-up: {name}'s website link"
-    return f"Quick note about {name}'s website"
+        return f"{name}: your website link is not working"
+    return f"Upgrading {name}'s website and Google presence"
+
+
+def email_body(p: Dict[str, Any], opener: Optional[str] = None) -> str:
+    """
+    The first email: the same short pitch as the WhatsApp message (template or AI), with the
+    studio name added under the founder's name. No phone number; the only link is our site.
+    """
+    if opener is None:
+        from prospector.engine import template_opener
+        opener = p.get("opener") or template_opener(p)
+    body = opener.rstrip()
+    if body.endswith(f"\n{settings.EMAIL_SIGNATURE_NAME}"):
+        body += "\nSynex Labs"
+    return body
 
 
 def followup_text(p: Dict[str, Any], number: int) -> str:
@@ -91,7 +106,7 @@ def email_footer(cold: bool = True, body: str = "") -> str:
     text = body.rstrip()
     site = settings.SITE_URL.replace("https://", "")
     sig = []
-    if not text.endswith(settings.EMAIL_SIGNATURE_NAME):
+    if settings.EMAIL_SIGNATURE_NAME not in "\n".join(text.splitlines()[-3:]):
         sig.append(settings.EMAIL_SIGNATURE_NAME)
     if site not in text:
         sig.append(f"Synex Labs | {site}")

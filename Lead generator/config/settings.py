@@ -158,6 +158,10 @@ class Settings:
     EMAIL_FROM_NAME: str = os.getenv("EMAIL_FROM_NAME", "Synex Labs").strip()
     EMAIL_SIGNATURE_NAME: str = os.getenv("EMAIL_SIGNATURE_NAME", "Shubham").strip()
     EMAIL_POSTAL_ADDRESS: str = os.getenv("EMAIL_POSTAL_ADDRESS", "").strip()
+    # Dashboard "Email" buttons: "gmail" opens Gmail compose in the browser (works without a mail app),
+    # "mailto" hands the message to a desktop mail app. GMAIL_ACCOUNT picks the account when several are signed in.
+    EMAIL_COMPOSE: str = os.getenv("EMAIL_COMPOSE", "gmail").strip().lower()
+    GMAIL_ACCOUNT: str = os.getenv("GMAIL_ACCOUNT", "").strip()
     EMAIL_DAILY_CAP: int = int(os.getenv("EMAIL_DAILY_CAP", "20"))
     # Warm-up: day 1 sends EMAIL_WARMUP_START, then +EMAIL_WARMUP_STEP per day up to the cap
     EMAIL_WARMUP_START: int = int(os.getenv("EMAIL_WARMUP_START", "5"))

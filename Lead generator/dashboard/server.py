@@ -31,9 +31,9 @@ from prospector.engine import ProspectEngine, template_opener
 from prospector.scoring import TIER_LABELS
 from prospector.sources import GooglePlacesSource
 from outreach import actions, emailer, inbox
-from outreach.links import whatsapp_link, mailto_link, tel_link, instagram_profile, best_channel, country_code_for
+from outreach.links import whatsapp_link, compose_link, tel_link, instagram_profile, best_channel, country_code_for
 from prospector.priority import label as priority_label
-from outreach.messages import opener_subject, audit_url, demo_url
+from outreach.messages import opener_subject, email_body, audit_url, demo_url
 
 logger = logging.getLogger("dashboard")
 
@@ -120,9 +120,10 @@ class DashboardServer:
             p["opener"] = template_opener(p)
             p["opener_source"] = "template"
         subject = opener_subject(p)
+        p["email_body"] = email_body(p, p["opener"]) if p.get("email") else None
         p["links"] = {
             "whatsapp": whatsapp_link(p.get("phone") or "", p["opener"], p.get("city")),
-            "mailto": mailto_link(p.get("email") or "", subject, p["opener"]),
+            "mailto": compose_link(p.get("email") or "", subject, p["email_body"] or ""),
             "tel": tel_link(p.get("phone") or ""),
             "instagram": instagram_profile(p.get("socials")),
         }
@@ -156,7 +157,7 @@ class DashboardServer:
         for l in leads:
             l["stage_label"] = LABELS.get(l["status"], l["status"])
             if l.get("platform") == "website" and l.get("reply_email"):
-                l["reply_link"] = mailto_link(l["reply_email"], f"Re: {l.get('title') or 'your enquiry'}", l.get("draft_icebreaker") or "")
+                l["reply_link"] = compose_link(l["reply_email"], f"Re: {l.get('title') or 'your enquiry'}", l.get("draft_icebreaker") or "")
         prospects = [self._prospect_view(p, email_ready) for p in ProspectRepository.dashboard_rows()]
         pipeline_ids = {p["id"] for p in prospects}
         pipeline = [p for p in prospects if p["status"] in ("contacted", "replied", "call_booked", "proposal_sent", "won", "lost", "no_response", "not_interested")]
@@ -170,7 +171,7 @@ class DashboardServer:
             p["followup_text"] = text
             p["followup_links"] = {
                 "whatsapp": whatsapp_link(p.get("phone") or "", text, p.get("city")),
-                "mailto": mailto_link(p.get("email") or "", f"Re: {p['subject']}", text),
+                "mailto": compose_link(p.get("email") or "", f"Re: {p['subject']}", text),
             }
             p["auto_email"] = bool(email_ready and settings.EMAIL_AUTO_FOLLOWUPS and p.get("channel") == "email" and p.get("email"))
             followups.append(p)

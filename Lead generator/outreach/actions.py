@@ -10,7 +10,7 @@ from database.prospect_repository import ProspectRepository, SuppressionList
 from database.repository import LeadRepository
 from database.email_repository import EmailRepository
 from . import emailer
-from .messages import opener_subject, followup_text, followup_subject
+from .messages import opener_subject, email_body, followup_text, followup_subject
 
 logger = logging.getLogger("outreach.actions")
 
@@ -73,7 +73,7 @@ def send_opener_email(pid: int, subject: Optional[str] = None, body: Optional[st
         raise ActionError("The opener was already emailed; follow-ups are scheduled")
     try:
         emailer.send_email(
-            p["email"], subject or opener_subject(p), body or opener_for(p), kind="opener", prospect_id=pid
+            p["email"], subject or opener_subject(p), body or email_body(p, opener_for(p)), kind="opener", prospect_id=pid
         )
     except (emailer.EmailNotConfigured, emailer.EmailBlocked) as e:
         raise ActionError(str(e))

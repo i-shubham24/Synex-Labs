@@ -165,6 +165,10 @@ main { padding: 24px clamp(16px, 4vw, 40px) 48px; max-width: 1480px; margin: 0 a
 .copy { border: 0; background: none; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--accent); padding: 0; }
 .copy:hover { text-decoration: underline; }
 .copy.working { animation: blink 1s steps(2) infinite; cursor: progress; }
+.tag-switch { display: inline-flex; gap: 14px; }
+.copy.off { color: var(--muted); }
+.email-subject { font-size: 13.5px; }
+.email-text { white-space: pre-line; }
 .actions { display: flex; flex-direction: column; gap: 6px; align-items: stretch; min-width: 108px; }
 .state-text { font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--ok); text-align: center; }
 .empty { padding: 40px 8px; color: var(--muted); text-align: center; }
