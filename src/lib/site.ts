@@ -7,10 +7,11 @@ export const site = {
   email: "shubhamkaler24@gmail.com",
   base: "India",
   timeZone: "Asia/Kolkata",
-  // Canonical production URL. Override with SITE_URL env in preview/prod.
+  // Canonical production URL (Cloudflare Pages). Override with NEXT_PUBLIC_SITE_URL when
+  // a custom domain is connected. Note: synexlabs.in belongs to a different company.
   url:
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-    "https://synexlabs.in",
+    "https://synex-labs.pages.dev",
   locale: "en_IN",
   twitterHandle: "@synexlabs",
   keywords: [

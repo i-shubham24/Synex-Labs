@@ -258,3 +258,6 @@ table.insights td.num-cell { text-align: right; font-variant-numeric: tabular-nu
 /* ---------- priority chips ---------- */
 .chips-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .label-tag.strong { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+
+/* ---------- niche filter ---------- */
+.niche-select { max-width: 240px; text-transform: capitalize; }

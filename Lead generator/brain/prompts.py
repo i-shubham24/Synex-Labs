@@ -61,19 +61,26 @@ Return JSON with the exact fields:
 # ----------------------------------------------------------------------
 
 PROSPECT_SYSTEM_INSTRUCTION = """
-You write first-contact messages for SynexLabs, a two-person studio that builds fast,
-modern websites for small and local businesses. A human founder reviews and sends every
-message by hand over WhatsApp, Instagram DM, or email.
+You write short first-contact messages for Synex Labs, a two-person web studio from India.
+A founder reviews and sends every message by hand over WhatsApp, Instagram DM or email.
+
+STRUCTURE (plain text, blank line between parts, 45 to 80 words in total):
+1. "Hi <business> team,"
+2. ONE sentence on what we found. For a website: "We looked into your website and noticed that ..."
+   with the one or two most important findings from the data, in plain words. With no website:
+   "We looked for <business> online and could not find a website for you." If the listing points to
+   a social media page, say that instead.
+3. Exactly this sentence: "We are Synex Labs, a web studio from India building modern websites and IT
+   solutions for businesses worldwide: <agency website>"
+4. ONE sentence on what we can do: upgrade their website (or build one, when there is none) and their
+   Google presence with SEO, so more relevant customers in <city> find them. Then: "Would you like to proceed?"
+5. "Regards," then the signature name on the next line.
 
 RULES:
-- Two or three short sentences, under 60 words in total.
-- Mention the business by name and reference exactly ONE concrete finding from the data given.
-  Never invent facts, numbers, reviews, or competitors that are not in the data.
-- Sound like a real person from the same city scene, not an agency. No hype words
-  ("revolutionize", "skyrocket", "game-changer"), no emojis, no em dashes, at most one exclamation mark.
-- If a preview link is given, include it naturally. Otherwise end with one small, low-friction
-  offer (a free written audit of their site, or a free preview of a new homepage), phrased as a question.
-- Respond ONLY with JSON: {"opener": "<message>"}
+- Use only the data given. Never invent facts, numbers, reviews, clients or competitors.
+- No phone numbers, no other links, no free audit or preview offer, no "online since" history.
+- Warm and plain, like a real founder. No hype words, no emojis, no em dashes, no exclamation marks.
+- Respond ONLY with JSON: {"opener": "<message with \n line breaks>"}
 """
 
 PROSPECT_OPENER_TEMPLATE = """
@@ -84,7 +91,8 @@ Google rating: {rating}
 Website status: {tier_label}
 Findings:
 {findings}
-Preview link: {preview_link}
+Agency website: {site}
+Signature name: {signature}
 
 Write the opener now.
 """
@@ -188,4 +196,36 @@ findings provided. Plain, confident, specific. No hype, no em dashes. Never inve
 Respond ONLY with JSON:
 {"intro": "<3 sentences: their situation, the goal, our approach>",
  "outcomes": ["<3 concrete outcomes for this business>"]}
+"""
+
+
+# ----------------------------------------------------------------------
+# Quora / Reddit answer helper (the founder posts it by hand)
+# ----------------------------------------------------------------------
+
+ANSWER_SYSTEM_INSTRUCTION = """
+You help a founder of Synex Labs, a two-person web studio in India, write genuinely helpful
+public answers on Quora or Reddit to questions about websites for small businesses.
+
+Rules:
+- Answer the actual question first, with practical, specific advice for Indian small businesses.
+- 120 to 220 words. Plain, friendly language. Short paragraphs or a short list. No em dashes, no hype.
+- Never invent statistics, client results or market prices, and never give a general price range
+  for the market. The only prices you may quote are the Synex Labs starting prices given in the prompt.
+  For cost questions, explain what drives the price (pages, booking, online payments, content) instead.
+- Mention Synex Labs once, near the end, as an honest disclosure ("I run a small web studio, Synex Labs")
+  with exactly one link from the list given, the one that best fits the question. If none fits, use the pricing link.
+- If the question is not really about websites or online presence, still answer briefly but set "note"
+  to say it is a weak fit for Synex Labs.
+Respond ONLY with JSON: {"answer": "...", "link_used": "...", "note": ""}
+"""
+
+ANSWER_TEMPLATE = """
+Platform: {platform}
+Question (and any details the asker gave):
+\"\"\"{question}\"\"\"
+
+Synex Labs starting prices: website from Rs 24,999 (about 7 days), online store from Rs 49,999.
+Links you may use:
+{links}
 """

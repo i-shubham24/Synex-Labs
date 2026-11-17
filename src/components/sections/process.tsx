@@ -67,7 +67,7 @@ export function Process() {
   return (
     <section id="process" className="pb-24 md:pb-36">
       <div className="shell">
-        <Label index="05">Process</Label>
+        <Label index="06">Process</Label>
 
         <div className="mt-8 grid grid-cols-12 gap-x-4 sm:gap-x-8 md:mt-12">
           <div className="col-span-12 lg:col-span-7">

@@ -5,6 +5,7 @@ import { Faq } from "@/components/sections/faq";
 import { Footer } from "@/components/sections/footer";
 import { Hero } from "@/components/sections/hero";
 import { Numbers } from "@/components/sections/numbers";
+import { Pricing } from "@/components/sections/pricing";
 import { Process } from "@/components/sections/process";
 import { Reel } from "@/components/sections/reel";
 import { Services } from "@/components/sections/services";
@@ -113,6 +114,7 @@ export default function Home() {
         <Statement />
         <Work />
         <Services />
+        <Pricing />
         <Numbers />
         <Audience />
         <Process />

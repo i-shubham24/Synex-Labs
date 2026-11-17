@@ -51,6 +51,8 @@ class GeminiAnalyzer:
     # Last failure, read by the health monitor
     last_error: Optional[str] = None
     last_error_at: float = 0.0
+    # model -> time until which it is skipped (daily quota used up or model retired)
+    _exhausted: Dict[str, float] = {}
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or settings.GEMINI_API_KEY
@@ -142,20 +144,35 @@ class GeminiAnalyzer:
         if not self.is_configured():
             raise GeminiUnavailable("GEMINI_API_KEY is not set in .env")
 
-        self._pace()
-        try:
-            if self._client:
-                text = self._call_sdk(prompt, system_instruction, images)
-            else:
-                text = self._call_rest(prompt, system_instruction, images)
-            GeminiAnalyzer.last_error = None
-            return text
-        except Exception as e:
-            GeminiAnalyzer.last_error = self._short_error(e)
-            GeminiAnalyzer.last_error_at = time.time()
-            raise GeminiUnavailable(GeminiAnalyzer.last_error) from e
+        # Main model first, then backups. A model that ran out of daily quota (429) or was
+        # retired (404) is skipped for a few hours, so the engine keeps working on the next one.
+        candidates = [self.model] + [m for m in settings.GEMINI_FALLBACK_MODELS if m != self.model]
+        now = time.time()
+        usable = [m for m in candidates if GeminiAnalyzer._exhausted.get(m, 0) < now] or candidates[-1:]
+        last_exc: Optional[Exception] = None
+        for model in usable:
+            self._pace()
+            try:
+                if self._client:
+                    text = self._call_sdk(prompt, system_instruction, images, model)
+                else:
+                    text = self._call_rest(prompt, system_instruction, images, model)
+                GeminiAnalyzer.last_error = None
+                return text
+            except Exception as e:
+                last_exc = e
+                message = str(e)
+                if "429" in message or "RESOURCE_EXHAUSTED" in message or "404" in message or "NOT_FOUND" in message:
+                    GeminiAnalyzer._exhausted[model] = now + 3 * 3600
+                    logger.warning(f"Gemini model {model} unavailable ({self._short_error(e)[:80]}); trying the next one.")
+                    continue
+                break  # other errors (network, bad request) are not fixed by another model
+        GeminiAnalyzer.last_error = self._short_error(last_exc)
+        GeminiAnalyzer.last_error_at = time.time()
+        raise GeminiUnavailable(GeminiAnalyzer.last_error) from last_exc
 
-    def _call_sdk(self, prompt: str, system_instruction: str, images: Optional[List[bytes]] = None) -> str:
+    def _call_sdk(self, prompt: str, system_instruction: str, images: Optional[List[bytes]] = None,
+                  model: Optional[str] = None) -> str:
         """Invokes Gemini using official google-genai SDK."""
         from google.genai import types
 
@@ -168,17 +185,18 @@ class GeminiAnalyzer:
         if images:
             contents = [types.Part.from_bytes(data=img, mime_type=self._mime(img)) for img in images] + [prompt]
         response = self._client.models.generate_content(
-            model=self.model,
+            model=model or self.model,
             contents=contents,
             config=config,
         )
         return response.text or ""
 
-    def _call_rest(self, prompt: str, system_instruction: str, images: Optional[List[bytes]] = None) -> str:
+    def _call_rest(self, prompt: str, system_instruction: str, images: Optional[List[bytes]] = None,
+                   model: Optional[str] = None) -> str:
         """Direct REST call to Google Generative Language API (used when the SDK is missing)."""
         import base64
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model or self.model}:generateContent"
         parts = [
             {"inline_data": {"mime_type": self._mime(img), "data": base64.b64encode(img).decode()}}
             for img in (images or [])

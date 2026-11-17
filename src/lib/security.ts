@@ -689,7 +689,7 @@ export function logSecurityEvent(event: string, fields: Record<string, unknown>)
 export function anonymizePersonalData(record: Record<string, unknown>): Record<string, unknown> {
   const scrubbed = { ...record };
   if ("name" in scrubbed) scrubbed.name = "Anonymized User";
-  if ("email" in scrubbed) scrubbed.email = "anonymized@synexlabs.in";
+  if ("email" in scrubbed) scrubbed.email = "anonymized@example.invalid";
   if ("message" in scrubbed) scrubbed.message = "[Content scrubbed per privacy request]";
   if ("ip" in scrubbed) scrubbed.ip = "0.0.0.0";
   scrubbed.anonymizedAt = new Date().toISOString();

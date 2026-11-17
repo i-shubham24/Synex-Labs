@@ -41,6 +41,7 @@
             <button class="tab" role="tab" data-tab="leads" type="button">Social &amp; website <span class="count" id="count-leads"></span></button>
             <button class="tab" role="tab" data-tab="pipeline" type="button">Pipeline</button>
             <button class="tab" role="tab" data-tab="insights" type="button">Insights</button>
+            <button class="tab" role="tab" data-tab="answers" type="button">Quora helper</button>
           </div>
           <div class="filters" id="filters">
             <button class="filter active" data-filter="open" type="button">To contact</button>
@@ -50,6 +51,9 @@
             <button class="filter" data-filter="closed" type="button">Closed</button>
             <button class="filter" data-filter="all" type="button">All</button>
           </div>
+          <select class="stage niche-select" id="niche-filter" aria-label="Business type">
+            <option value="">All business types</option>
+          </select>
         </div>
         <div class="list" id="list"></div>
       </section>

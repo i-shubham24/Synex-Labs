@@ -22,7 +22,7 @@ ALERTABLE_TIERS = (
 UPDATABLE = {
     "opener", "opener_source", "channel", "email", "email_status", "notes", "slug", "visual_json",
     "pages_generated_at", "pages_published_at", "pages_live", "brief", "proposal_at", "issues",
-    "heat_score", "tier",
+    "heat_score", "tier", "site_since", "last_update_year", "old5", "established", "traffic_note",
 }
 
 
@@ -198,17 +198,26 @@ class ProspectRepository:
 
     @staticmethod
     def dashboard_rows() -> List[Dict[str, Any]]:
-        """Top of each priority group plus recent in-progress / closed rows, so every filter has data."""
+        """
+        Top of each priority group plus recent in-progress / closed rows, so every filter
+        has data. Inside a group, niches take turns (best of each niche, then the next
+        best of each), so the list mixes kinds of business instead of showing one niche.
+        """
         queries = [
-            ("status IN ('new','alerted') AND tier IN ('no_website','social_only','no_website_unverified')", 300),
-            ("status IN ('new','alerted') AND tier = 'weak_website' AND COALESCE(old_site,0) = 1", 200),
+            ("status IN ('new','alerted') AND tier IN ('no_website','social_only','no_website_unverified')", 400),
+            ("status IN ('new','alerted') AND tier = 'weak_website' AND COALESCE(old_site,0) = 1", 250),
             ("status IN ('new','alerted') AND (tier = 'broken_website' OR (tier = 'weak_website' AND COALESCE(old_site,0) = 0))", 150),
         ]
         rows, seen = [], set()
         with get_connection() as conn:
             for where, limit in queries:
                 for r in conn.execute(
-                    f"SELECT * FROM prospects WHERE {where} ORDER BY priority DESC, heat_score DESC, id DESC LIMIT ?;",
+                    f"""SELECT * FROM (
+                            SELECT *, ROW_NUMBER() OVER (
+                                PARTITION BY niche ORDER BY priority DESC, heat_score DESC, id DESC
+                            ) AS niche_rank
+                            FROM prospects WHERE {where}
+                        ) ORDER BY niche_rank ASC, priority DESC, heat_score DESC LIMIT ?;""",
                     (limit,),
                 ).fetchall():
                     if r["id"] not in seen:
@@ -406,8 +415,9 @@ class ProspectRepository:
     ) -> List[Tuple[str, str]]:
         """
         Niche + city pairs that are due (never run, or older than `rerun_days`).
-        Never-run pairs come first (exploration). Among the rest, pairs whose
-        niche and city have earned replies come first (self-tuning), then oldest.
+        Priority market (India) first. Niches take turns: one city per niche per
+        round, least-searched niches first, so every run covers many kinds of
+        business. Within a niche: untried cities first, then best reply rate, then oldest.
         """
         cutoff = _fmt(_now_dt() - timedelta(days=rerun_days))
         with get_connection() as conn:
@@ -418,6 +428,9 @@ class ProspectRepository:
                     (source,),
                 ).fetchall()
             }
+        searched = {}
+        for (niche, _city) in last_runs:
+            searched[niche] = searched.get(niche, 0) + 1
         from outreach.links import country_code_for
 
         scores = ProspectRepository._search_scores([(n, c) for c in cities for n in niches])
@@ -429,10 +442,29 @@ class ProspectRepository:
                 if last is None or last < cutoff:
                     never = last is None
                     score = scores.get((niche, city), 0.0)
-                    # Priority market first, then untried pairs, then best reply rate, then oldest
                     due.append((priority, 0 if never else 1, -score, last or "", niche, city))
-        due.sort()
-        return [(niche, city) for *_, niche, city in due[:limit]]
+
+        # Round-robin across niches inside each market group (India first)
+        order = sorted({e[4] for e in due}, key=lambda n: (searched.get(n, 0), niches.index(n)))
+        picked: List[tuple] = []
+        # Stagger the starting city per niche so one run spans several cities too
+        for market in (0, 1):
+            market_cities = [c for c in cities if any(e[5] == c and e[0] == market for e in due)]
+            city_pos = {c: i for i, c in enumerate(market_cities)}
+            span = max(1, len(market_cities))
+
+            def queue_key(entry, k, city_pos=city_pos, span=span):
+                return entry[:4] + ((city_pos.get(entry[5], 0) - k) % span,)
+
+            queues = {
+                n: sorted((e for e in due if e[0] == market and e[4] == n), key=lambda e, k=k: queue_key(e, k))
+                for k, n in enumerate(order)
+            }
+            while any(queues.values()) and len(picked) < limit:
+                for n in order:
+                    if queues[n] and len(picked) < limit:
+                        picked.append(queues[n].pop(0))
+        return [(niche, city) for *_, niche, city in picked]
 
     @staticmethod
     def _search_scores(pairs: List[Tuple[str, str]]) -> Dict[Tuple[str, str], float]:

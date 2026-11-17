@@ -6,6 +6,7 @@ import { Nav } from "@/components/nav";
 import { Preloader } from "@/components/preloader";
 import { Providers } from "@/components/providers";
 import { themeScript } from "@/components/theme-toggle";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 import { services } from "@/data/content";
 import { allProjects } from "@/data/projects";
 import { servicePackages } from "@/data/packages";
@@ -242,6 +243,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <Preloader />
           <Nav />
           {children}
+          <WhatsAppButton />
           <Cursor />
         </Providers>
         {process.env.VERCEL && <Analytics />}

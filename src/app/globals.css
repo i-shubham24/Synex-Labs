@@ -466,3 +466,16 @@ html {
 }
 
 
+
+/* Floating WhatsApp button slides in once the opening curtain has gone. */
+@media (prefers-reduced-motion: no-preference) {
+  .wa-float {
+    animation: wa-in 0.7s var(--ease-swift) 2.4s both;
+  }
+}
+@keyframes wa-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}

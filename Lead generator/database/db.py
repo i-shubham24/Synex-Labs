@@ -36,6 +36,11 @@ MIGRATIONS = {
         ("new_business", "INTEGER DEFAULT 0"),
         ("old_site", "INTEGER DEFAULT 0"),  # years-old or not mobile-friendly website
         ("priority", "INTEGER DEFAULT 0"),  # contact order: no website > old site > rest; India first
+        ("site_since", "INTEGER"),          # first year the site appears in the Internet Archive
+        ("last_update_year", "INTEGER"),    # year the homepage content last changed
+        ("old5", "INTEGER DEFAULT 0"),      # online 5+ years and not refreshed for 3+ years
+        ("established", "INTEGER DEFAULT 0"),  # real visitors (CrUX), steady archive captures or many reviews
+        ("traffic_note", "TEXT"),
     ],
     "geocode_cache": [
         ("lat", "REAL"),                  # city centre, for cities without a boundary

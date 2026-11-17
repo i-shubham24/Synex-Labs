@@ -34,6 +34,7 @@ JOB_NAMES = {
     "backup_job": "Database backup",
     "live_check_job": "Published pages check",
     "telegram_catchup_job": "Telegram catch-up",
+    "history_job": "Website age check",
 }
 
 # kind -> (state key, lock group)
@@ -41,6 +42,7 @@ MANUAL = {
     "social": ("social_scan", "social"),
     "prospect": ("maps_prospector_job", "prospect"),
     "pages": ("showcase_job", "prospect"),
+    "history": ("history_job", "prospect"),
     "followups": ("followups_job", "outreach"),
     "inbox": ("inbox_job", "outreach"),
     "digest": ("digest_job", "outreach"),
@@ -171,6 +173,8 @@ class EngineService:
         self._job("backup_job", "maintenance", automation.backup_database, CronTrigger(hour=13, minute=15))
         self._job("live_check_job", "maintenance", self._live_check, IntervalTrigger(minutes=60, jitter=300))
         self._job("telegram_catchup_job", "outreach", self._telegram_catch_up, IntervalTrigger(minutes=30, jitter=60))
+        # Age / last update / traffic for saved websites, a batch every 2 hours
+        self._job("history_job", "prospect", ProspectEngine.backfill_history, IntervalTrigger(minutes=120, jitter=300))
 
     def run_now(self, kind: str) -> bool:
         """Queues an immediate run. Returns False if that kind is already running."""
@@ -179,7 +183,7 @@ class EngineService:
             fn = self._social(None)
         elif kind in MANUAL:
             key, group = MANUAL[kind]
-            fn = {"prospect": self._prospect, "pages": self._pages, "followups": automation.run_followups,
+            fn = {"prospect": self._prospect, "pages": self._pages, "history": ProspectEngine.backfill_history, "followups": automation.run_followups,
                   "inbox": self._inbox, "digest": self._digest}[kind]
         else:
             raise ValueError(f"Unknown job kind: {kind}")

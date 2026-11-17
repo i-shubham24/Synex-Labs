@@ -1,7 +1,7 @@
 Contact: mailto:shubhamkaler24@gmail.com
 Expires: 2027-12-31T23:59:59.000Z
 Preferred-Languages: en
-Canonical: https://synexlabs.in/.well-known/security.txt
-Policy: https://synexlabs.in/#faq
-Hiring: https://synexlabs.in/#contact
-Acknowledgments: https://synexlabs.in/#work
+Canonical: https://synex-labs.pages.dev/.well-known/security.txt
+Policy: https://synex-labs.pages.dev/#faq
+Hiring: https://synex-labs.pages.dev/#contact
+Acknowledgments: https://synex-labs.pages.dev/#work

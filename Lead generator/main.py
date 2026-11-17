@@ -356,6 +356,38 @@ def cmd_stop(args):
         console.print("[yellow]Engine did not answer; it is probably already stopped.[/yellow]")
 
 
+def cmd_clean_excluded(args):
+    """Deletes saved leads we never pitch: government, embassies, tax offices, real estate."""
+    import shutil
+    from database.db import get_connection
+    from prospector.filters import is_excluded, EXCLUDED_NICHES
+    from showcase.pages import PAGES_DIR
+
+    init_db()
+    with get_connection() as conn:
+        rows = conn.execute("SELECT id, name, niche, slug FROM prospects;").fetchall()
+        doomed = [r for r in rows if is_excluded(r["name"], r["niche"])]
+        ids = [r["id"] for r in doomed]
+        if args.dry_run or not ids:
+            console.print(f"[yellow]{len(ids)} leads match the exclusion rules{' (dry run, nothing deleted)' if args.dry_run else ''}.[/yellow]")
+            for r in doomed[:30]:
+                console.print(f"  {r['name']} [dim]({r['niche']})[/dim]")
+            return
+        marks = ",".join("?" for _ in ids)
+        conn.execute(f"DELETE FROM emails WHERE prospect_id IN ({marks});", ids)
+        conn.execute(f"DELETE FROM prospects WHERE id IN ({marks});", ids)
+        niche_marks = ",".join("?" for _ in EXCLUDED_NICHES)
+        conn.execute(f"DELETE FROM prospect_searches WHERE lower(niche) IN ({niche_marks});", tuple(EXCLUDED_NICHES))
+        conn.commit()
+    removed_pages = 0
+    for r in doomed:
+        if r["slug"] and (PAGES_DIR / r["slug"]).is_dir():
+            shutil.rmtree(PAGES_DIR / r["slug"], ignore_errors=True)
+            removed_pages += 1
+    console.print(f"[green]Deleted {len(ids)} excluded leads[/green] (and {removed_pages} page folders). "
+                  f"A copy of the database from before is in data/backups.")
+
+
 def cmd_automation(command: str):
     """One-off runs of the automation jobs (the background engine runs them on a schedule)."""
     init_db()
@@ -399,6 +431,7 @@ def main():
             "start",
             "stop",
             "build-pages",
+            "clean-excluded",
             "run-followups",
             "check-inbox",
             "send-digest",
@@ -426,6 +459,7 @@ def main():
     prospect_opts.add_argument("--status", default="new", help="show-prospects filter: new, alerted, contacted, skipped, all")
     prospect_opts.add_argument("--out", help="export-prospects CSV path")
     prospect_opts.add_argument("--url", help="audit-site target URL")
+    parser.add_argument("--dry-run", action="store_true", help="clean-excluded: only list what would be deleted")
     parser.add_argument("--no-browser", action="store_true", help="start: run in background without opening the dashboard")
 
     args = parser.parse_args()
@@ -438,6 +472,8 @@ def main():
         cmd_run_once(platform="twitter")
     elif args.command == "ingest-meta":
         cmd_run_once(platform="meta")
+    elif args.command == "clean-excluded":
+        cmd_clean_excluded(args)
     elif args.command in ("build-pages", "run-followups", "check-inbox", "send-digest", "backup"):
         cmd_automation(args.command)
     elif args.command == "start":

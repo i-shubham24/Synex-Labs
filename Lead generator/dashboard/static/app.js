@@ -10,6 +10,7 @@ const FILTER_TABS = ["prospects", "leads"];
 let state = null;
 let tab = "prospects";
 let filter = "open";
+let nicheFilter = "";
 let lastListKey = "";
 let lastLogKey = "";
 let offline = false;
@@ -181,12 +182,33 @@ function renderHealth() {
 
 function inFilter(item) {
   const status = item.status;
+  if (nicheFilter && item.niche !== undefined && item.niche !== nicheFilter) return false;
   if (filter === "all") return true;
   if (filter === "open") return OPEN.includes(status);
   if (filter === "first") return OPEN.includes(status) && item.priority_group === "first";
   if (filter === "upgrade") return OPEN.includes(status) && item.priority_group === "upgrade";
   if (filter === "active") return ACTIVE.includes(status);
   return CLOSED.includes(status);
+}
+
+// Business-type dropdown for the Prospects tab, with how many are waiting in each
+function renderNicheFilter() {
+  const sel = $("niche-filter");
+  sel.hidden = tab !== "prospects";
+  if (sel.hidden || editing) return;
+  const counts = {};
+  for (const p of state.prospects) {
+    if (OPEN.includes(p.status) && p.niche) counts[p.niche] = (counts[p.niche] || 0) + 1;
+  }
+  const niches = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  const key = JSON.stringify([niches, counts, nicheFilter]);
+  if (renderNicheFilter._key === key) return;
+  renderNicheFilter._key = key;
+  sel.replaceChildren(
+    el("option", { value: "" }, "All business types"),
+    ...niches.map((n) => el("option", { value: n, selected: n === nicheFilter ? true : null }, `${n} (${counts[n]})`)),
+  );
+  if (nicheFilter && !counts[nicheFilter]) sel.value = nicheFilter;
 }
 
 function chip(text, strong = false) {
@@ -199,6 +221,15 @@ function prospectChips(p) {
   else if (p.priority_group === "upgrade") out.push(chip("2nd · Old website", true));
   if (p.india) out.push(chip("India"));
   if (p.new_business) out.push(chip("New business"));
+  const year = new Date().getFullYear();
+  if (p.old5) out.push(chip("5+ years old", true));
+  if (p.site_since) out.push(chip(`Online since ${p.site_since}`));
+  if (p.last_update_year && p.last_update_year <= year - 3) out.push(chip(`Not updated since ${p.last_update_year}`));
+  if (p.established) {
+    const c = chip("Busy site");
+    if (p.traffic_note) c.title = p.traffic_note;
+    out.push(c);
+  }
   return out.length ? el("div", { class: "chips-row" }, out) : null;
 }
 
@@ -463,6 +494,51 @@ function renderInsights() {
       : "Email is off. Add SMTP settings in .env to send openers and follow-ups automatically."));
 }
 
+/* ---------- Quora / Reddit answer helper ---------- */
+
+const answerState = { question: "", platform: "Quora", answer: "", note: "" };
+
+function renderAnswerHelper() {
+  const question = el("textarea", { class: "draft", rows: "5", placeholder: "Paste a Quora or Reddit question here, with any details the person gave", value: answerState.question });
+  question.addEventListener("input", () => { answerState.question = question.value; });
+  question.addEventListener("focus", () => { editing = true; });
+  question.addEventListener("blur", () => { editing = false; });
+  const platform = el("select", { class: "stage", onchange: (e) => { answerState.platform = e.target.value; } },
+    ["Quora", "Reddit"].map((p) => el("option", { value: p, selected: p === answerState.platform ? true : null }, p)));
+  const output = el("textarea", { class: "draft", rows: "9", placeholder: "Your drafted answer appears here", value: answerState.answer });
+  output.addEventListener("input", () => { answerState.answer = output.value; });
+  output.addEventListener("focus", () => { editing = true; });
+  output.addEventListener("blur", () => { editing = false; });
+  const note = el("p", { class: "hint" }, answerState.note);
+  const btn = el("button", { class: "btn small primary", type: "button", onclick: async () => {
+    btn.disabled = true; btn.textContent = "Writing";
+    try {
+      const res = await api("/api/answer", "POST", { question: answerState.question, platform: answerState.platform });
+      answerState.answer = res.answer;
+      answerState.note = res.note || (res.link_used ? `Link used: ${res.link_used}` : "");
+      output.value = res.answer;
+      note.textContent = answerState.note;
+    } catch (e) { toast(e.message); }
+    btn.disabled = false; btn.textContent = "Draft answer";
+  } }, "Draft answer");
+  return el("div", {},
+    el("p", {}, "Find a question on Quora or Reddit where an Indian business owner asks about websites, paste it here, and post the drafted answer yourself from your own account."),
+    el("div", { class: "section-title" }, "Question"), question,
+    el("div", { class: "row-actions", style: "display:flex;gap:8px;margin:10px 0" }, platform, btn),
+    el("div", { class: "section-title" }, "Answer"), output,
+    el("div", { style: "display:flex;gap:8px;margin-top:8px;align-items:center" },
+      el("button", { class: "btn small ghost", type: "button", onclick: () => copy(output.value, "Answer copied") }, "Copy"), note),
+    el("div", { class: "section-title" }, "How to use Quora well"),
+    el("ul", { class: "issues" },
+      [
+        "Set your profile credential to something like \"Founder, Synex Labs (websites for Indian businesses)\".",
+        "Follow topics such as Website Development, Small Business in India, Web Design and Digital Marketing.",
+        "Answer 3 to 5 questions a week, like \"website cost in India\", \"best web developer in Delhi\" or \"do I need a website for my shop\".",
+        "Be useful first. One link per answer, to the page that fits, such as /websites-for/clinics.",
+        "Older questions with many views keep sending visitors for months, so they are worth answering too.",
+      ].map((t) => el("li", {}, t))));
+}
+
 /* ---------- list dispatcher ---------- */
 
 function renderList(force = false) {
@@ -472,6 +548,7 @@ function renderList(force = false) {
   $("count-inbox").textContent = st.replies_waiting || "";
   $("count-leads").textContent = st.leads_to_contact || "";
   $("filters").hidden = !FILTER_TABS.includes(tab);
+  renderNicheFilter();
   $("filter-first").hidden = $("filter-upgrade").hidden = tab !== "prospects";
   $("filter-first").textContent = `No website${n(st.prospects_no_website) ? " " + st.prospects_no_website : ""}`;
   $("filter-upgrade").textContent = `Old website${n(st.prospects_old_site) ? " " + st.prospects_old_site : ""}`;
@@ -495,7 +572,7 @@ function renderList(force = false) {
     items = state.leads.filter(inFilter); render = leadRow; empty = "No leads here. The engine keeps scanning.";
   }
 
-  const key = JSON.stringify([tab, filter, tab === "pipeline" ? state.pipeline.map((p) => [p.id, p.status]) : null,
+  const key = JSON.stringify([tab, filter, nicheFilter, tab === "pipeline" ? state.pipeline.map((p) => [p.id, p.status]) : null,
     tab === "insights" ? state.insights : null,
     items ? items.map((x) => [x.id, x.status, x.opener || x.draft_icebreaker || x.draft_reply, x.handled, x.pages && x.pages.generated, x.pages && x.pages.published, x.pages && x.pages.live, x.pages && x.pages.proposal, x.brief ? 1 : 0, x.followup_number]) : null]);
   if (!force && (key === lastListKey || editing)) return;
@@ -504,6 +581,7 @@ function renderList(force = false) {
   const list = $("list");
   if (tab === "pipeline") return list.replaceChildren(renderPipeline());
   if (tab === "insights") return list.replaceChildren(renderInsights());
+  if (tab === "answers") return list.replaceChildren(renderAnswerHelper());
   if (!items.length) return list.replaceChildren(el("div", { class: "empty" }, empty));
   list.replaceChildren(...items.slice(0, 150).map(render));
 }
@@ -594,6 +672,10 @@ document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () 
   document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === b));
   if (state) renderList(true);
 }));
+$("niche-filter").addEventListener("change", (e) => { nicheFilter = e.target.value; if (state) renderList(true); });
+$("niche-filter").addEventListener("focus", () => { editing = true; });
+$("niche-filter").addEventListener("blur", () => { editing = false; });
+
 document.querySelectorAll(".filter").forEach((b) => b.addEventListener("click", () => {
   filter = b.dataset.filter;
   document.querySelectorAll(".filter").forEach((x) => x.classList.toggle("active", x === b));

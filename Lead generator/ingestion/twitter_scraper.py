@@ -263,8 +263,8 @@ class TwitterScraper(BaseScraper):
         from playwright.sync_api import sync_playwright
 
         print("\n[TWITTER LOGIN] Launching visible browser window...")
-        print("[TWITTER LOGIN] Please log in to X.com in the opened window.")
-        print("[TWITTER LOGIN] Once logged in, press Enter in this terminal to save your session cookies.\n")
+        print("[TWITTER LOGIN] Sign in to X in that window. It saves and closes by itself once you are in.")
+        print("[TWITTER LOGIN] Waiting up to 10 minutes.\n")
 
         with sync_playwright() as p:
             browser = p.chromium.launch(
@@ -275,8 +275,26 @@ class TwitterScraper(BaseScraper):
             page = context.new_page()
             page.goto("https://x.com/i/flow/login")
 
-            input(">>> Press ENTER here once you have finished logging in: ")
+            # X sets the auth_token cookie once sign-in (including any 2FA step) succeeds
+            signed_in = False
+            deadline = time.time() + 600
+            while time.time() < deadline:
+                try:
+                    cookies = context.cookies("https://x.com")
+                except Exception:
+                    break  # window was closed
+                if any(c.get("name") == "auth_token" for c in cookies):
+                    signed_in = True
+                    break
+                time.sleep(2)
 
-            context.storage_state(path=str(settings.TWITTER_AUTH_STATE_PATH))
-            print(f"[TWITTER LOGIN] Success! Saved authentication state to: {settings.TWITTER_AUTH_STATE_PATH}\n")
-            browser.close()
+            if signed_in:
+                time.sleep(4)  # let X finish setting its other session cookies
+                context.storage_state(path=str(settings.TWITTER_AUTH_STATE_PATH))
+                print(f"[TWITTER LOGIN] Success! Saved authentication state to: {settings.TWITTER_AUTH_STATE_PATH}\n")
+            else:
+                print("[TWITTER LOGIN] Not signed in (window closed or 10 minutes passed). Nothing saved.\n")
+            try:
+                browser.close()
+            except Exception:
+                pass

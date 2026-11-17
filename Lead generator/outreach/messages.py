@@ -75,10 +75,31 @@ def followup_subject(p: Dict[str, Any], original_subject: Optional[str]) -> str:
     return subject if subject.lower().startswith("re:") else f"Re: {subject}"
 
 
-def email_footer(cold: bool = True) -> str:
-    lines = ["", "", settings.EMAIL_SIGNATURE_NAME, f"Synex Labs | {settings.SITE_URL.replace('https://', '')}"]
+def studio_whatsapp_display() -> str:
+    """The studio WhatsApp number written for people, e.g. '+91 79733 73923' (empty if not set)."""
+    digits = "".join(ch for ch in settings.STUDIO_WHATSAPP if ch.isdigit())
+    if digits.startswith("91") and len(digits) == 12:
+        return f"+91 {digits[2:7]} {digits[7:]}"
+    return f"+{digits}" if digits else ""
+
+
+def email_footer(cold: bool = True, body: str = "") -> str:
+    """
+    Signature added under an email. Skips the name and website when the body already has them,
+    and leaves the WhatsApp number out of cold emails (openers and follow-ups).
+    """
+    text = body.rstrip()
+    site = settings.SITE_URL.replace("https://", "")
+    sig = []
+    if not text.endswith(settings.EMAIL_SIGNATURE_NAME):
+        sig.append(settings.EMAIL_SIGNATURE_NAME)
+    if site not in text:
+        sig.append(f"Synex Labs | {site}")
+    if not cold and studio_whatsapp_display():
+        sig.append(f"WhatsApp: {studio_whatsapp_display()}")
+    if cold and settings.EMAIL_POSTAL_ADDRESS:
+        sig.append(settings.EMAIL_POSTAL_ADDRESS)
+    blocks = ["\n".join(sig)] if sig else []
     if cold:
-        if settings.EMAIL_POSTAL_ADDRESS:
-            lines.append(settings.EMAIL_POSTAL_ADDRESS)
-        lines += ["", 'Not interested? Reply "unsubscribe" and I won\'t email again.']
-    return "\n".join(lines)
+        blocks.append('Not interested? Reply "unsubscribe" and I won\'t email again.')
+    return "".join("\n\n" + b for b in blocks)

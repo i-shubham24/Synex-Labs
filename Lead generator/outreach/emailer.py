@@ -91,7 +91,7 @@ def _build(to: str, subject: str, body: str, in_reply_to: Optional[str], referen
     msg["To"] = to
     msg["Subject"] = subject
     msg["Date"] = formatdate(localtime=True)
-    domain = settings.EMAIL_FROM_ADDRESS.split("@")[-1] or "synexlabs.in"
+    domain = settings.EMAIL_FROM_ADDRESS.split("@")[-1] or "synex-labs.pages.dev"
     msg["Message-ID"] = make_msgid(domain=domain)
     msg["List-Unsubscribe"] = f"<mailto:{settings.EMAIL_FROM_ADDRESS}?subject=unsubscribe>"
     if in_reply_to:
@@ -148,7 +148,7 @@ def send_email(
     if enforce_hours and not within_send_hours():
         raise EmailBlocked(f"Outside sending hours ({settings.EMAIL_SEND_HOURS})")
 
-    full_body = body.rstrip() + email_footer(cold=cold)
+    full_body = body.rstrip() + email_footer(cold=cold, body=body)
     msg = _build(to, subject, full_body, in_reply_to, references)
     try:
         _smtp_send(msg)

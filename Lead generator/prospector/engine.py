@@ -4,6 +4,7 @@ search businesses -> skip known ones -> audit websites -> score -> save -> alert
 """
 
 import csv
+import json
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -17,9 +18,11 @@ from database.db import init_db
 from database.prospect_repository import ProspectRepository
 from brain.gemini_analyzer import GeminiAnalyzer, GeminiUnavailable
 from delivery.telegram_bot import TelegramAlerter
-from .sources import Business, SourceError, pick_source
+from .sources import Business, SourceError, pick_source, WEBSITE_GROUPS
+from .history import domain_of, profile as site_profile, summarize as summarize_history
 from outreach.links import country_code_for
 from .priority import old_or_unresponsive, compute as compute_priority
+from .filters import is_excluded
 from .site_audit import audit_website, SiteAudit
 from .scoring import score_business, TIER_LABELS
 
@@ -43,6 +46,11 @@ def _issue_phrase(issue: str) -> str:
         (r"^Runs on a free (.+?) address", lambda m: f"your site runs on a free {m.group(1)} address instead of your own domain"),
         (r"^Runs WordPress ([\d.]+)", lambda m: f"your site runs WordPress {m.group(1)}, which is several versions behind"),
         (r"^Uses Flash", lambda m: "parts of your site use Flash, which no browser plays anymore"),
+        (r"^Website not updated since (\d{4})", lambda m: f"your website has not been updated since {m.group(1)}"),
+        (r"^Design looks dated", lambda m: "the design looks dated next to newer sites"),
+        (r"^No meta description", lambda m: "your site has no proper description for Google search results"),
+        (r"^Homepage has no title", lambda m: "your homepage has no proper title for Google"),
+        (r"^Uses jQuery ([\d.]+)", lambda m: "parts of the site use very old code that modern browsers struggle with"),
     ]
     for pattern, build in rules:
         m = re.search(pattern, issue)
@@ -51,53 +59,64 @@ def _issue_phrase(issue: str) -> str:
     return issue[0].lower() + issue[1:] if issue else "a few things that cost you visitors"
 
 
-def template_opener(p: Dict[str, Any]) -> str:
-    """Plain fallback opener, used only when Gemini is unavailable. Always grounded in the data."""
-    name = p["name"]
-    niche = p.get("niche") or "business"
-    city = (p.get("city") or "").split(",")[0]
-    issues = p.get("issues") or []
-    first_issue = issues[0] if issues else ""
-    tier = p.get("tier")
-    from outreach.messages import preview_line
-    preview = preview_line(p)
+STUDIO_INTRO = (
+    "We are Synex Labs, a web studio from India building modern websites and IT solutions "
+    "for businesses worldwide: {site}"
+)
 
-    if tier == "no_website":
-        reviews = p.get("review_count") or 0
-        proof = f" with {reviews} reviews" if reviews else ""
-        return (
-            f"Hi {name} team, I came across your Google listing{proof} but couldn't find a website for you. "
-            f"We build fast, simple sites for {niche} businesses in {city}. "
-            + (preview if preview else "Would a free homepage preview be useful?")
-        )
-    if tier == "no_website_unverified":
-        return (
-            f"Hi {name} team, I was looking for {niche} businesses in {city} and couldn't find a website for you. "
-            f"We build fast, simple sites for local businesses. "
-            + (preview if preview else "Would a free homepage preview be useful?")
-        )
-    if tier == "social_only":
-        return (
-            f"Hi {name} team, I noticed your listing points to a social page rather than a website. "
-            f"A simple site of your own would show up better on Google. "
-            + (preview if preview else "Want me to send a free homepage preview?")
-        )
-    if tier == "broken_website":
-        lowered = first_issue.lower()
-        if "page not found" in lowered or "404" in lowered:
-            detail = "the website link on your listing leads to a 'page not found' error"
-        elif "shut down" in lowered:
-            detail = "the website link on your listing points to a Google site that no longer exists"
+
+def template_opener(p: Dict[str, Any]) -> str:
+    """
+    Short first message (about 60 words): one sentence on what we found, who we are with our
+    website, what we can do (website, Google presence, SEO) and one question. No phone number.
+    Used whenever Gemini does not write the opener. Always grounded in the data.
+    """
+    name = p["name"]
+    city = (p.get("city") or "").split(",")[0].strip()
+    customers = f"more relevant customers in {city}" if city else "more relevant customers"
+    issues = p.get("issues") or []
+    tier = p.get("tier")
+    intro = STUDIO_INTRO.format(site=settings.SITE_URL + "/")
+    sign = f"Regards,\n{settings.EMAIL_SIGNATURE_NAME}"
+
+    if tier in ("no_website", "no_website_unverified"):
+        if tier == "no_website" and p.get("rating"):
+            found = f"We found {name} on Google Maps ({p['rating']} stars) but could not find a website for you."
         else:
-            detail = "your website didn't load when I tried to visit it"
-        return (
-            f"Hi {name} team, quick heads-up: {detail}, so people searching for you hit a dead end. "
-            + (preview if preview else "Happy to send over a short audit with the fix. Want me to?")
+            found = f"We looked for {name} online and could not find a website for you."
+        offer = f"We can build your website and set up your Google presence with SEO, so {customers} find you."
+
+    elif tier == "social_only":
+        found = (
+            f"We looked into {name} online and your Google listing points to a social media page, "
+            f"not a website of your own."
         )
-    return (
-        f"Hi {name} team, I had a look at your website and noticed {_issue_phrase(first_issue)}. "
-        + (preview if preview else "I can send a free audit with the fixes. Want me to?")
-    )
+        offer = f"We can build your own website and improve your Google presence with SEO, so {customers} find you."
+
+    elif tier == "broken_website":
+        first = issues[0].lower() if issues else ""
+        if "page not found" in first or "404" in first:
+            detail = "the link on your Google listing leads to a 'page not found' error"
+        elif "shut down" in first:
+            detail = "the link on your listing points to a Google site that no longer exists"
+        else:
+            detail = "it did not load when we tried to open it"
+        found = f"We looked into your website and {detail}, so customers searching for you hit a dead end."
+        offer = f"We can fix or rebuild your website and improve your Google presence with SEO, so {customers} find you."
+
+    else:
+        # Old, slow or weak website: the upgrade pitch, with the top one or two real findings
+        findings = [
+            _issue_phrase(i) for i in issues
+            if not i.startswith("Online since") and not i.startswith("Looks like a new")
+        ][:2]
+        if findings:
+            found = f"We looked into your website and noticed that {', and '.join(findings)}."
+        else:
+            found = "We looked into your website and found a few things that make it harder for customers to reach you."
+        offer = f"We can upgrade your website and your Google presence with SEO, so {customers} find you."
+
+    return f"Hi {name} team,\n\n{found}\n\n{intro}\n\n{offer} Would you like to proceed?\n\n{sign}"
 
 
 def _new_business_signal(b: Business, tier: str) -> tuple:
@@ -114,11 +133,25 @@ def _new_business_signal(b: Business, tier: str) -> tuple:
     return False, ""
 
 
-def _preview_link(p: Dict[str, Any]) -> Optional[str]:
-    from outreach.messages import demo_url, audit_url
-    if p.get("tier") in ("no_website", "no_website_unverified", "social_only"):
-        return demo_url(p)
-    return audit_url(p)
+def _spread_by_niche(candidates: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
+    """
+    Keeps priority order but lets each niche take at most a few of the slots, so a
+    batch of cards covers many kinds of business instead of one.
+    """
+    cap = max(2, -(-limit // 5))  # ceil(limit / 5), at least 2
+    picked, per_niche, overflow = [], {}, []
+    for p in candidates:
+        n = p.get("niche") or ""
+        if per_niche.get(n, 0) < cap:
+            per_niche[n] = per_niche.get(n, 0) + 1
+            picked.append(p)
+        else:
+            overflow.append(p)
+        if len(picked) >= limit:
+            break
+    # Few niches available: fill the rest in priority order
+    picked += overflow[: max(0, limit - len(picked))]
+    return picked[:limit]
 
 
 class ProspectEngine:
@@ -139,7 +172,10 @@ class ProspectEngine:
         alert: bool = True,
     ) -> Dict[str, Any]:
         explicit = bool(niches or cities)
-        niches = niches or settings.PROSPECT_NICHES
+        niches = niches or list(settings.PROSPECT_NICHES)
+        if not explicit and self.source.name == "osm":
+            # Old-website hunt: "businesses with a website" searches lead the rotation, then niches
+            niches = [g for g in WEBSITE_GROUPS if g not in niches] + niches
         cities = cities or settings.PROSPECT_CITIES
         limit = max_searches or settings.PROSPECT_MAX_SEARCHES_PER_RUN
 
@@ -204,10 +240,23 @@ class ProspectEngine:
             seen.add(b.place_id)
             if ProspectRepository.exists(b.source, b.place_id):
                 continue
+            if is_excluded(b.name, b.niche or niche):
+                continue  # government, embassy, tax office or real estate: not our clients
             # Few reviews only rules out businesses WITH a site; without one it signals a new business
             if b.source == "google_places" and b.website and (b.review_count or 0) < settings.PROSPECT_MIN_REVIEWS:
                 continue
             fresh.append(b)
+
+        # One business per website domain: many branches sharing a site are a chain, not a client
+        domains, unique = set(), []
+        for b in fresh:
+            d = domain_of(b.website) if b.website else None
+            if d and d in domains:
+                continue
+            if d:
+                domains.add(d)
+            unique.append(b)
+        fresh = unique
 
         with_site = [b for b in fresh if b.website]
         audits: Dict[str, SiteAudit] = {}
@@ -216,24 +265,41 @@ class ProspectEngine:
                 for b, audit in zip(with_site, pool.map(lambda x: audit_website(x.website), with_site)):
                     audits[b.place_id] = audit
 
+        # Site age, last update and traffic signals (Internet Archive, optional Chrome UX Report).
+        # Most suspicious-looking sites first, capped per search to stay polite and quick.
+        histories = self._histories(with_site, audits)
+
         country_code = country_code_for(city)
         saved = hot = 0
+        year = time.gmtime().tm_year
         for b in fresh:
             audit = audits.get(b.place_id)
             tier, heat, issues = score_business(b, audit)
             new_business, why_new = _new_business_signal(b, tier)
             if new_business:
                 issues = [why_new] + issues
-            old_site = old_or_unresponsive(audit.to_dict() if audit else None)[0]
+            hist = histories.get(b.place_id) or {}
+            old_site, why_old = old_or_unresponsive(audit.to_dict() if audit else None, None, hist.get("last_update"))
+            if old_site and tier == "ok_website":
+                tier, heat = "weak_website", max(heat, settings.PROSPECT_MIN_SCORE)
+            if hist.get("last_update") and hist["last_update"] <= year - 3:
+                issues.insert(0, f"Website not updated since {hist['last_update']} (Internet Archive)")
+            if hist.get("since") and hist["since"] <= year - 5:
+                issues.append(f"Online since {hist['since']}, so the business has been around a while")
             # Contact order: no website > old / unresponsive site > rest, India first in each group
-            priority = compute_priority(tier, heat, city, old_site, new_business)
             email = b.email or (audit.emails[0] if audit and audit.emails else "")
+            contactable = bool(b.phone or email or b.socials or (audit.socials if audit else []))
+            old5 = bool(hist.get("old5")) or bool(hist.get("since") and hist["since"] <= year - 5 and old_site)
+            if hist:
+                hist["old5"] = old5
+            priority = compute_priority(tier, heat, city, old_site, new_business, contactable,
+                                        old5, bool(hist.get("established")))
             socials = list(dict.fromkeys(b.socials + (audit.socials if audit else [])))
             row_id = ProspectRepository.save({
                 "source": b.source,
                 "place_id": b.place_id,
                 "name": b.name,
-                "niche": niche,
+                "niche": b.niche or niche,
                 "city": city,
                 "address": b.address,
                 "phone": b.phone,
@@ -255,9 +321,99 @@ class ProspectEngine:
             })
             if row_id:
                 saved += 1
+                if hist:
+                    ProspectRepository.update(
+                        row_id,
+                        site_since=hist.get("since"),
+                        last_update_year=hist.get("last_update"),
+                        old5=1 if hist.get("old5") else 0,
+                        established=1 if hist.get("established") else 0,
+                        traffic_note=hist.get("traffic_note") or None,
+                    )
                 if tier not in ("ok_website", "unchecked", "closed"):
                     hot += 1
         return saved, hot
+
+    @staticmethod
+    def backfill_history(limit: Optional[int] = None) -> Dict[str, int]:
+        """
+        Checks age / last update / traffic for saved websites that were never checked
+        (Indian ones first), then re-ranks them. Runs on a schedule in small batches.
+        """
+        from database.db import get_connection
+        from .priority import reprioritize
+
+        limit = limit or settings.HISTORY_CHECKS_PER_SEARCH
+        with get_connection() as conn:
+            rows = conn.execute(
+                """SELECT id, website, review_count, issues FROM prospects
+                   WHERE website LIKE 'http%' AND site_since IS NULL
+                     AND tier IN ('weak_website','ok_website') AND status IN ('new','alerted','ignored')
+                   ORDER BY (city LIKE '%India%') DESC, priority DESC, id ASC LIMIT ?;""",
+                (limit,),
+            ).fetchall()
+        year = time.gmtime().tm_year
+        checked, old5, established, ids = 0, 0, 0, []
+        for r in rows:
+            data = site_profile(r["website"])
+            if not data:
+                continue  # archive unreachable: retried on the next run
+            hist = summarize_history(data, r["review_count"])
+            try:
+                issues = json.loads(r["issues"] or "[]")
+            except (TypeError, json.JSONDecodeError):
+                issues = []
+            if hist["last_update"] and hist["last_update"] <= year - 3:
+                line = f"Website not updated since {hist['last_update']} (Internet Archive)"
+                if line not in issues:
+                    issues.insert(0, line)
+            if hist["since"] and hist["since"] <= year - 5:
+                line = f"Online since {hist['since']}, so the business has been around a while"
+                if line not in issues:
+                    issues.append(line)
+            ProspectRepository.update(
+                r["id"],
+                site_since=hist["since"] or 0,  # 0 = checked, not in the archive
+                last_update_year=hist["last_update"],
+                old5=1 if hist["old5"] else 0,
+                established=1 if hist["established"] else 0,
+                traffic_note=hist["traffic_note"] or None,
+                issues=issues,
+            )
+            ids.append(r["id"])
+            checked += 1
+            old5 += 1 if hist["old5"] else 0
+            established += 1 if hist["established"] else 0
+        if ids:
+            reprioritize(ids)
+        return {"checked": checked, "old_5_years": old5, "established": established, "left": max(0, len(rows) - checked)}
+
+    @staticmethod
+    def _histories(with_site: List[Business], audits: Dict[str, SiteAudit]) -> Dict[str, Dict[str, Any]]:
+        year = time.gmtime().tm_year
+
+        def suspicion(b: Business) -> int:
+            a = audits.get(b.place_id)
+            if not a or not a.reachable or a.bot_protected or a.kind == "social_only":
+                return -1
+            score = 0
+            if old_or_unresponsive(a.to_dict())[0]:
+                score += 3
+            if not a.https:
+                score += 2
+            if a.copyright_year and a.copyright_year <= year - 3:
+                score += 2
+            if a.old_jquery or a.wordpress_version:
+                score += 1
+            return score
+
+        ranked = sorted((b for b in with_site if suspicion(b) >= 0), key=suspicion, reverse=True)
+        out: Dict[str, Dict[str, Any]] = {}
+        for b in ranked[: settings.HISTORY_CHECKS_PER_SEARCH]:
+            data = site_profile(b.website)
+            if data:
+                out[b.place_id] = summarize_history(data, b.review_count)
+        return out
 
     # ------------------------------------------------------------------ alerts
 
@@ -267,7 +423,7 @@ class ProspectEngine:
         limit = min(limit or settings.PROSPECT_ALERTS_PER_RUN, left_today)
         if limit <= 0:
             return 0
-        prospects = ProspectRepository.get_alertable(limit)
+        prospects = _spread_by_niche(ProspectRepository.get_alertable(limit * 8), limit)
         if not prospects:
             return 0
         if not self.telegram.is_configured():
@@ -316,7 +472,8 @@ class ProspectEngine:
             "rating": rating,
             "tier_label": TIER_LABELS.get(p.get("tier"), p.get("tier")),
             "findings": "\n".join(f"- {i}" for i in (p.get("issues") or [])) or "- none",
-            "preview_link": _preview_link(p) or "none",
+            "site": settings.SITE_URL + "/",
+            "signature": settings.EMAIL_SIGNATURE_NAME,
         }
 
     # ------------------------------------------------------------------ export

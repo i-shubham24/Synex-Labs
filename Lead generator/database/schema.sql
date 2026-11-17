@@ -172,3 +172,10 @@ CREATE TABLE IF NOT EXISTS kv (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+
+-- 10. Website history per domain (Internet Archive / Chrome UX Report), cached 30 days
+CREATE TABLE IF NOT EXISTS site_history (
+    domain TEXT PRIMARY KEY,
+    data TEXT,
+    checked_at TIMESTAMP
+);

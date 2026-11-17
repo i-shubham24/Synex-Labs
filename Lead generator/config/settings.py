@@ -24,6 +24,10 @@ class Settings:
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     # Minimum gap between Gemini calls (free tier is rate limited per minute)
     GEMINI_MIN_INTERVAL_SECONDS: float = float(os.getenv("GEMINI_MIN_INTERVAL_SECONDS", "6.5"))
+    # Backups used automatically when the main model hits its daily free quota
+    GEMINI_FALLBACK_MODELS: List[str] = [
+        m.strip() for m in os.getenv("GEMINI_FALLBACK_MODELS", "gemini-flash-lite-latest,gemini-3.5-flash-lite,gemini-flash-latest").split(",") if m.strip()
+    ]
 
     # Database
     SQLITE_DB_PATH: Path = BASE_DIR / os.getenv("SQLITE_DB_PATH", "data/leads.db")
@@ -102,7 +106,8 @@ class Settings:
     # Niches are comma-separated. Cities are SEMICOLON-separated because names contain commas.
     _raw_niches = os.getenv(
         "PROSPECT_NICHES",
-        "dentist,hair salon,restaurant,real estate agent,plumber,gym,clinic,lawyer",
+        # All-round Indian small businesses; the queue rotates through them
+        "coaching centre,clinic,restaurant,hair salon,beauty parlour,gym,school,hotel,jewellery shop,clothing store,boutique,furniture store,interior designer,chartered accountant,lawyer,travel agency,event venue,photographer,cafe,bakery,sweet shop,guest house,physiotherapist,dentist,veterinary,optician,pharmacy,electronics store,mobile phone shop,car repair,car dealer,driving school,plumber,electrician",
     )
     PROSPECT_NICHES: List[str] = [n.strip() for n in _raw_niches.split(",") if n.strip()]
     _raw_cities = os.getenv(
@@ -119,7 +124,7 @@ class Settings:
     PROSPECT_CITIES: List[str] = [c.strip() for c in _raw_cities.split(";") if c.strip()]
     # auto = Google Places when a key is set, otherwise free OpenStreetMap data
     PROSPECT_SOURCE: str = os.getenv("PROSPECT_SOURCE", "auto").strip().lower()
-    PROSPECT_MAX_SEARCHES_PER_RUN: int = int(os.getenv("PROSPECT_MAX_SEARCHES_PER_RUN", "6"))
+    PROSPECT_MAX_SEARCHES_PER_RUN: int = int(os.getenv("PROSPECT_MAX_SEARCHES_PER_RUN", "10"))
     PROSPECT_RERUN_DAYS: int = int(os.getenv("PROSPECT_RERUN_DAYS", "30"))
     PROSPECT_ALERTS_PER_RUN: int = int(os.getenv("PROSPECT_ALERTS_PER_RUN", "15"))
     # Hard cap on prospect cards per day, so retries after an outage never flood Telegram
@@ -128,6 +133,8 @@ class Settings:
     PROSPECT_MIN_REVIEWS: int = int(os.getenv("PROSPECT_MIN_REVIEWS", "5"))
     # Sites scoring at or above this are "weak" and worth pitching (0-100, higher = worse site)
     PROSPECT_MIN_SCORE: int = int(os.getenv("PROSPECT_MIN_SCORE", "40"))
+    # Internet Archive lookups per search (site age, last update, traffic signal); about 1-2s each
+    HISTORY_CHECKS_PER_SEARCH: int = int(os.getenv("HISTORY_CHECKS_PER_SEARCH", "60"))
     PROSPECT_DAILY_RUN_HOUR: int = int(os.getenv("PROSPECT_DAILY_RUN_HOUR", "9"))
     # --- Follow-ups, digest, backups ---
     FOLLOWUP_DAYS: List[int] = [
@@ -141,7 +148,7 @@ class Settings:
     BACKUP_KEEP: int = int(os.getenv("BACKUP_KEEP", "14"))
 
     # --- Email outreach (off until SMTP is configured) ---
-    # Use a SEPARATE domain + mailbox for cold email so synexlabs.in keeps its reputation.
+    # Use a SEPARATE domain + mailbox for cold email so your main domain keeps its reputation.
     SMTP_HOST: str = os.getenv("SMTP_HOST", "").strip()
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_SECURITY: str = os.getenv("SMTP_SECURITY", "starttls").strip().lower()  # starttls | ssl | none
@@ -170,7 +177,8 @@ class Settings:
     INBOX_POLL_MINUTES: int = int(os.getenv("INBOX_POLL_MINUTES", "10"))
 
     # --- Showcase pages (audit page + demo homepage per prospect) ---
-    SITE_URL: str = os.getenv("SITE_URL", "https://synexlabs.in").rstrip("/")
+    # Agency website used in every message and page link (synexlabs.in is a different company)
+    SITE_URL: str = os.getenv("SITE_URL", "https://synex-labs.pages.dev").rstrip("/")
     SITE_PUBLIC_DIR: Path = Path(os.getenv("SITE_PUBLIC_DIR", "").strip() or str(BASE_DIR.parent / "public"))
     PAGES_PER_RUN: int = int(os.getenv("PAGES_PER_RUN", "5"))
     # Screenshot + Gemini design check of sites that passed the code checks (finds dated-looking sites)

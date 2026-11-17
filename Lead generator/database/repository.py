@@ -203,14 +203,14 @@ class LeadRepository:
         message_id: str, name: str, need: str, body: str, reply_email: str, draft_reply: str,
         country: str = "Unknown", first_website: bool = False, old_website: bool = False,
     ) -> Optional[int]:
-        """Stores a contact-form brief from synexlabs.in as a qualified lead (inbound = top priority)."""
+        """Stores a contact-form brief from the website as a qualified lead (inbound = top priority)."""
         query = """
         INSERT INTO leads (
             platform, post_id, author, title, content, url, source_channel,
             is_processed, is_valid_lead, project_category, budget_indicator,
             draft_icebreaker, ai_reasoning, confidence_score, processed_at, status, reply_email,
             country, first_website, old_website, priority
-        ) VALUES ('website', ?, ?, ?, ?, ?, 'synexlabs.in contact form', 1, 1, ?, 'Not mentioned', ?,
+        ) VALUES ('website', ?, ?, ?, ?, ?, 'website contact form', 1, 1, ?, 'Not mentioned', ?,
                   'Direct enquiry from the website contact form.', 1.0, ?, 'new', ?, ?, ?, ?, ?)
         ON CONFLICT(platform, post_id) DO NOTHING;
         """

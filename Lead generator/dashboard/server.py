@@ -249,6 +249,34 @@ class DashboardServer:
         ProspectRepository.set_opener(prospect_id, opener, "gemini")
         return 200, {"opener": opener}
 
+    def draft_answer(self, body: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
+        """Drafts a helpful Quora / Reddit answer for the founder to post by hand."""
+        from brain.prompts import ANSWER_SYSTEM_INSTRUCTION, ANSWER_TEMPLATE
+
+        question = str(body.get("question") or "").strip()[:3000]
+        if len(question) < 10:
+            return 400, {"error": "Paste the question first"}
+        gemini = self.service.pipeline.gemini_analyzer
+        if not gemini.is_configured():
+            return 400, {"error": "Gemini is not configured (GEMINI_API_KEY)"}
+        base = settings.SITE_URL
+        pages = ["clinics", "dentists", "salons", "restaurants", "gyms", "real-estate", "coaching"]
+        links = "\n".join([f"- {base}/websites-for/{slug}" for slug in pages] + [f"- {base}/#pricing (prices)"])
+        try:
+            data = gemini.generate_json(
+                ANSWER_TEMPLATE.format(platform=str(body.get("platform") or "Quora")[:20], question=question, links=links),
+                ANSWER_SYSTEM_INSTRUCTION,
+            )
+        except GeminiUnavailable as e:
+            return 503, {"error": str(e)}
+        except ValueError as e:
+            return 502, {"error": str(e)}
+        return 200, {
+            "answer": str(data.get("answer") or ""),
+            "link_used": str(data.get("link_used") or ""),
+            "note": str(data.get("note") or ""),
+        }
+
     @staticmethod
     def build_pages(prospect_id: int) -> Tuple[int, Dict[str, Any]]:
         from showcase.pages import PageBuilder
@@ -409,6 +437,9 @@ class DashboardServer:
                     # legacy simple status routes
                     if action in PROSPECT_STAGES:
                         return self._json(200, actions.set_prospect_stage(pid, action))
+
+                if path == "/api/answer":
+                    return self._json(*server.draft_answer(body))
 
                 m = re.fullmatch(r"/api/email/(\d+)/(send|handled)", path)
                 if m:

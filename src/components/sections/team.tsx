@@ -25,7 +25,7 @@ export function Team() {
     <section ref={sectionRef} id="team" className="surface-invert overflow-hidden py-24 md:py-36">
       <div className="shell">
         <SectionHead
-          index="06"
+          index="07"
           label="Team"
           title={[
             <>
