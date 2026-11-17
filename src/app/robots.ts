@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: ["/", "/api/health", "/google-merchant.xml"],
+        allow: ["/", "/api/health"],
         // /p/ holds private prospect previews made by the lead engine (also noindex per page)
         disallow: ["/api/contact", "/p/"],
       },

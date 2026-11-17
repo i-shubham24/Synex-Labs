@@ -25,7 +25,7 @@ export function Audience() {
     <section ref={ref} id="who" className="pb-24 md:pb-36">
       <div className="shell">
         <SectionHead
-          index="05"
+          index="04"
           label="Who we work with"
           title={[
             <>Built for teams</>,

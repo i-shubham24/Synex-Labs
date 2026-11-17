@@ -10,7 +10,7 @@ import { Status } from "@/components/shot";
 import { findNiche, niches, type Niche } from "@/data/niches";
 import { servicePackages } from "@/data/packages";
 import { allProjects, cover, type Project } from "@/data/projects";
-import { bookingUrl, inr, whatsappLink } from "@/lib/contact";
+import { bookingUrl, whatsappLink } from "@/lib/contact";
 import { site } from "@/lib/site";
 
 type Props = { params: Promise<{ niche: string }> };
@@ -66,7 +66,7 @@ function faqsFor(niche: Niche) {
   return [
     {
       q: `How much does a ${niche.singular} website cost?`,
-      a: `From Rs ${inr(pkg.priceInr)} for a complete website. After a short call you get a fixed price before any work starts.`,
+      a: "It depends on the pages and features you need. After a short call we send you a fixed quote, before any work starts.",
     },
     {
       q: "How long does it take?",
@@ -102,12 +102,6 @@ export default async function NichePage({ params }: Props) {
     areaServed: { "@type": "Country", name: "India" },
     url,
     description: niche.intro,
-    offers: {
-      "@type": "Offer",
-      price: pkg.priceInr,
-      priceCurrency: "INR",
-      url,
-    },
   };
   const faqJsonLd = {
     "@context": "https://schema.org",
@@ -155,25 +149,24 @@ export default async function NichePage({ params }: Props) {
             </Fade>
           </div>
 
-          {/* Price + includes */}
+          {/* Quote + includes */}
           <Fade className="mt-16 md:mt-24">
             <div className="grid border-t border-l border-border md:grid-cols-12">
               <div className="flex flex-col justify-between gap-8 border-r border-b border-border p-6 md:col-span-4 md:p-9">
-                <p className="label text-muted-foreground">Starting price</p>
+                <p className="label text-muted-foreground">Price</p>
                 <div>
-                  <p className="title text-[clamp(3rem,6vw,5.5rem)]">
-                    <span className="text-[0.55em] align-[0.35em]">₹</span>
-                    {inr(pkg.priceInr)}
-                  </p>
-                  <p className="label mt-3 text-muted-foreground">
-                    About {pkg.timelineDays} days · ${pkg.price} for clients abroad
+                  <p className="title text-[clamp(2.4rem,4.5vw,4rem)]">A fixed quote for you</p>
+                  <p className="mt-3 text-muted-foreground">
+                    After a short call you get one clear price, before any work starts. Most sites take about{" "}
+                    {pkg.timelineDays} days.
                   </p>
                 </div>
                 <Link
-                  href="/#pricing"
+                  href={wa ?? "/#contact"}
+                  {...(wa ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                   className="label w-fit underline decoration-border underline-offset-4 transition-colors hover:decoration-signal"
                 >
-                  All packages
+                  Ask for a quote
                 </Link>
               </div>
               <div className="border-r border-b border-border p-6 md:col-span-8 md:p-9">

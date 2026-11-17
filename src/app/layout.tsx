@@ -9,7 +9,6 @@ import { themeScript } from "@/components/theme-toggle";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { services } from "@/data/content";
 import { allProjects } from "@/data/projects";
-import { servicePackages } from "@/data/packages";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -140,27 +139,11 @@ const organizationJsonLd = {
     "@type": "OfferCatalog",
     name: "Synex Labs Services and Packages",
     itemListElement: [
+      // Prices are quoted to each client after a call, so no amounts are published here
       ...services.map((s, i) => ({
         "@type": "Offer",
         position: i + 1,
         itemOffered: { "@type": "Service", name: s.name, description: s.line },
-      })),
-      ...servicePackages.map((pkg, i) => ({
-        "@type": "Offer",
-        position: services.length + i + 1,
-        itemOffered: {
-          "@type": "Product",
-          name: pkg.name,
-          description: pkg.description,
-          sku: pkg.sku,
-          offers: {
-            "@type": "Offer",
-            price: pkg.price,
-            priceCurrency: pkg.currency,
-            availability: "https://schema.org/InStock",
-            url: pkg.url,
-          },
-        },
       })),
     ],
   },

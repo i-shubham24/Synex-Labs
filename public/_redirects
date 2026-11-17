@@ -7,4 +7,3 @@
 /projects/:slug /work/:slug 301
 /portfolio/:slug /work/:slug 301
 /case-study/:slug /work/:slug 301
-/feeds/google-merchant.xml /google-merchant.xml 200

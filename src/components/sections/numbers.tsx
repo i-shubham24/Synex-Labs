@@ -53,7 +53,7 @@ export function Numbers() {
     <section ref={sectionRef} id="why" className="relative overflow-hidden py-24 md:py-36">
       <div className="shell">
         <SectionHead
-          index="04"
+          index="03"
           label="Why us"
           title={[
             <>Small team.</>,
